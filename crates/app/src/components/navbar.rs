@@ -14,6 +14,7 @@ pub fn Navbar(
     show_import_modal: RwSignal<bool>,
     show_export_modal: RwSignal<bool>,
     show_storage_modal: RwSignal<bool>,
+    #[prop(optional)] show_telemetry_modal: Option<RwSignal<bool>>,
     mobile_menu_open: RwSignal<bool>,
     #[prop(optional)] announcement: Option<RwSignal<String>>,
 ) -> impl IntoView {
@@ -70,6 +71,20 @@ pub fn Navbar(
                     </button> <button class="nav-btn" on:click=move |_| show_export_modal.set(true)>
                         "Export"
                     </button>
+                    {move || {
+                        if let Some(telemetry_sig) = show_telemetry_modal {
+                            view! {
+                                <button
+                                    class="nav-btn"
+                                    on:click=move |_| telemetry_sig.set(true)
+                                >
+                                    "Telemetry"
+                                </button>
+                            }.into_any()
+                        } else {
+                            view! {}.into_any()
+                        }
+                    }}
                     <button
                         class="nav-btn nav-btn-subtle"
                         on:click=move |_| show_help_modal.set(true)
@@ -157,6 +172,23 @@ pub fn Navbar(
                             >
                                 "Export Data"
                             </button>
+                            {move || {
+                                if let Some(telemetry_sig) = show_telemetry_modal {
+                                    view! {
+                                        <button
+                                            class="drawer-btn"
+                                            on:click=move |_| {
+                                                close_mobile_menu();
+                                                telemetry_sig.set(true);
+                                            }
+                                        >
+                                            "Telemetry"
+                                        </button>
+                                    }.into_any()
+                                } else {
+                                    view! {}.into_any()
+                                }
+                            }}
                             <button
                                 class="drawer-btn"
                                 on:click=move |_| {

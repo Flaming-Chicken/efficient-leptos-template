@@ -10,6 +10,7 @@ use crate::components::theme::{
 };
 use crate::components::{
     ExportModal, HelpModal, ImportModal, ItemList, Navbar, ResetModal, StorageModal,
+    TelemetryModal,
 };
 use crate::storage::{
     load_state_from_storage, query_storage_diagnostics, request_persistent_storage,
@@ -41,6 +42,7 @@ pub fn App() -> impl IntoView {
     let show_import_modal = RwSignal::new(false);
     let show_export_modal = RwSignal::new(false);
     let show_storage_modal = RwSignal::new(false);
+    let show_telemetry_modal = RwSignal::new(false);
     let mobile_menu_open = RwSignal::new(false);
 
     // Warning banner dismissal signals
@@ -61,6 +63,7 @@ pub fn App() -> impl IntoView {
             show_import_modal.set(false);
             show_export_modal.set(false);
             show_storage_modal.set(false);
+            show_telemetry_modal.set(false);
             mobile_menu_open.set(false);
         }
     };
@@ -92,6 +95,7 @@ pub fn App() -> impl IntoView {
                 show_import_modal=show_import_modal
                 show_export_modal=show_export_modal
                 show_storage_modal=show_storage_modal
+                show_telemetry_modal=show_telemetry_modal
                 mobile_menu_open=mobile_menu_open
                 announcement=announcement
             />
@@ -223,6 +227,10 @@ pub fn App() -> impl IntoView {
                 is_open=show_storage_modal
                 show_import_modal=show_import_modal
                 state=state
+            />
+            <TelemetryModal
+                is_open=show_telemetry_modal
+                announcement=announcement
             />
         </div>
     }
