@@ -58,11 +58,12 @@ shared = { path = "crates/shared" }
 app = { path = "crates/app" }
 tauri = { version = "2", features = ["config-toml"] }
 tauri-build = { version = "2", features = ["config-toml"] }
-spodeian-cache = { path = "../spodeian-core/crates/spodeian-cache" }
-spodeian-tokens = { path = "../spodeian-core/crates/spodeian-tokens" }
-spodeian-telemetry = { path = "../spodeian-core/crates/spodeian-telemetry" }
-spodeian-export = { path = "../spodeian-core/crates/spodeian-export" }
-spodeian-web-utils = { path = "../spodeian-core/crates/spodeian-web-utils" }
+spodeian-cache = { path = "../spodeian-core/crates/spodeian-cache", version = "^1.0.0" }
+spodeian-tokens = { path = "../spodeian-core/crates/spodeian-tokens", version = "^1.0.0" }
+spodeian-telemetry = { path = "../spodeian-core/crates/spodeian-telemetry", version = "^1.0.0" }
+spodeian-export = { path = "../spodeian-core/crates/spodeian-export", version = "^1.0.0" }
+spodeian-web-utils = { path = "../spodeian-core/crates/spodeian-web-utils", version = "^1.0.0" }
+
 
 
 [profile.release]
