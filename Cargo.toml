@@ -15,7 +15,7 @@ edition = "2024"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 description = "Modern, modular Serverless (WASM/Cloudflare Pages/PWA) & Native Desktop template built with Rust and Leptos"
-repository = "https://github.com/Spodeian/efficient-leptos-template"
+repository = "https://github.com/Flaming-Chicken/efficient-leptos-template"
 
 [workspace.dependencies]
 leptos = { version = "0.8", default-features = false }

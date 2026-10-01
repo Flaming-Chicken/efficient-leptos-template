@@ -1,7 +1,7 @@
 # Serverless & Desktop Leptos Template
 
-[![CI & Test Suite](https://github.com/Spodeian/efficient-leptos-template/actions/workflows/ci.yml/badge.svg)](https://github.com/Spodeian/efficient-leptos-template/actions/workflows/ci.yml)
-[![GitHub Pages](https://github.com/Spodeian/efficient-leptos-template/actions/workflows/static.yml/badge.svg)](https://github.com/Spodeian/efficient-leptos-template/actions/workflows/static.yml)
+[![CI & Test Suite](https://github.com/Flaming-Chicken/efficient-leptos-template/actions/workflows/ci.yml/badge.svg)](https://github.com/Flaming-Chicken/efficient-leptos-template/actions/workflows/ci.yml)
+[![GitHub Pages](https://github.com/Flaming-Chicken/efficient-leptos-template/actions/workflows/static.yml/badge.svg)](https://github.com/Flaming-Chicken/efficient-leptos-template/actions/workflows/static.yml)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
 [![Rust: 2024 Edition](https://img.shields.io/badge/Rust-2024%20Edition-orange.svg)](https://www.rust-lang.org)
 [![Leptos: 0.8](https://img.shields.io/badge/Leptos-0.8-crimson.svg)](https://leptos.dev)
