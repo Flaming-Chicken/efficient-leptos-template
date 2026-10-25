@@ -63,6 +63,8 @@ spodeian-tokens = { git = "https://github.com/Flaming-Chicken/spodeian-core", br
 spodeian-telemetry = { git = "https://github.com/Flaming-Chicken/spodeian-core", branch = "dev", version = "^1.0.0" }
 spodeian-export = { git = "https://github.com/Flaming-Chicken/spodeian-core", branch = "dev", version = "^1.0.0" }
 spodeian-web-utils = { git = "https://github.com/Flaming-Chicken/spodeian-core", branch = "dev", version = "^1.0.0" }
+criterion = "0.5"
+wasm-bindgen-test = "0.3"
 
 
 

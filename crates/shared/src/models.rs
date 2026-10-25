@@ -140,6 +140,10 @@ impl ItemCollection {
         }
     }
 
+    pub fn reset(&mut self) {
+        self.items.clear();
+    }
+
     pub fn total_count(&self) -> usize {
         self.items.len()
     }
@@ -197,5 +201,10 @@ impl AppState {
             collection: ItemCollection::with_sample_data(),
             config: AppConfig::default(),
         }
+    }
+
+    /// Resets app domain data while preserving configuration preferences like theme.
+    pub fn reset_data(&mut self) {
+        self.collection.reset();
     }
 }

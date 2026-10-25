@@ -73,3 +73,16 @@ fn test_csv_roundtrip() {
         assert_eq!(orig.completed, imp.completed);
     }
 }
+
+#[test]
+fn test_reset_data() {
+    let mut state = AppState::new();
+    assert!(!state.collection.items.is_empty());
+    state.config.theme = ThemeMode::Light;
+
+    state.reset_data();
+    assert!(state.collection.items.is_empty());
+    assert_eq!(state.collection.total_count(), 0);
+    // Preserves configuration
+    assert_eq!(state.config.theme, ThemeMode::Light);
+}

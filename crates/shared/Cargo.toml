@@ -20,3 +20,11 @@ spodeian-export = { workspace = true }
 [features]
 default = ["std"]
 std = ["serde/std", "serde_json/std", "thiserror/std"]
+
+[dev-dependencies]
+criterion = { workspace = true }
+
+[[bench]]
+name = "serialization_benchmarks"
+harness = false
+

@@ -202,7 +202,7 @@ jobs:
         shell: bash
         run: |
           echo "Executing WASM tests with browser: ${{ steps.select-browser.outputs.browser }}"
-          WASM_BINDGEN_TEST_TIMEOUT=60 cargo test --target wasm32-unknown-unknown || true
+          WASM_BINDGEN_TEST_TIMEOUT=60 cargo test -p web --test wasm_tests --target wasm32-unknown-unknown
 
   mobile-build-check:
     name: Mobile Build Check (Android & iOS)

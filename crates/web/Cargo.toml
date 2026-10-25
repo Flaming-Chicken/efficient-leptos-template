@@ -32,4 +32,8 @@ default = ["hydrate"]
 hydrate = ["app/hydrate", "leptos/hydrate"]
 csr = ["app/csr", "leptos/csr"]
 
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = { workspace = true }
+
+
 
