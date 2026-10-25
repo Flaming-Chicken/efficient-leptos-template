@@ -1,3 +1,4 @@
+#![recursion_limit = "256"]
 //! WebAssembly client entry point for the Leptos template.
 
 use wasm_bindgen::prelude::*;

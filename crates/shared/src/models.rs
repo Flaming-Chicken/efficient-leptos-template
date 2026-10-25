@@ -164,6 +164,23 @@ impl ItemCollection {
     }
 }
 
+/// Active application view page.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum AppPage {
+    #[default]
+    Dashboard,
+    About,
+}
+
+impl AppPage {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Dashboard => "Dashboard",
+            Self::About => "About",
+        }
+    }
+}
+
 /// Global application configuration.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
@@ -173,6 +190,7 @@ pub struct AppConfig {
     pub show_completed: bool,
     pub filter_priority: Option<Priority>,
     pub search_query: String,
+    pub active_page: AppPage,
 }
 
 impl Default for AppConfig {
@@ -183,6 +201,7 @@ impl Default for AppConfig {
             show_completed: true,
             filter_priority: None,
             search_query: String::new(),
+            active_page: AppPage::Dashboard,
         }
     }
 }
