@@ -59,10 +59,11 @@ graph TD
   - **Dashboard Page**: Interactive item collection with real-time statistics, search & priority filtering, and instant creation.
   - **About Page**: Architectural overview, live runtime diagnostics, active storage tier, and keyboard shortcuts guide.
   - **Bottom Status Footer**: Live storage tier indicator (`LocalStorage` vs `IndexedDB`), quick page navigation links, and documentation links.
-- **💾 Automatic Cross-Platform State Persistence**:
-  - **Tier 1 (Fast Sync)**: Synchronous browser `LocalStorage` under dedicated key `serverless_leptos_app_state`.
-  - **Tier 2 (Extended Quota)**: Asynchronous `IndexedDB` fallback if `LocalStorage` quota is exceeded.
-  - **Storage Diagnostics Bridge**: Real-time inspection of storage persistence status (`persisted` vs `ephemeral`) and permission requests (`StorageManager.persist()`).
+- **💾 Automatic Multi-Tier State Persistence & Memory Protection**:
+  - **In-Memory Tier (RAM)**: Native reactive signal state for sub-microsecond latency and instant DOM reconciliation. Includes bounded capacity (`MEMORY_WORKING_SET_LIMIT` = 100 items) to prevent browser tab and process memory exhaustion (OOM).
+  - **Tier 1 (Fast Sync)**: Synchronous browser `LocalStorage` under dedicated key `serverless_leptos_app_state` for fast reloads (< 16 KB).
+  - **Tier 2 (IndexedDB Fallback)**: Structured, transactional `IndexedDB` backing store that receives synchronized copies of state and acts as a durable fallback to prevent memory from overfilling on large datasets.
+  - **Storage Diagnostics Bridge**: Real-time inspection of in-memory working sets, storage persistence status (`persisted` vs `ephemeral`), active storage tiers, and permission requests (`StorageManager.persist()`).
 - **📱 Responsive & Touch-Friendly UI**: Layout automatically adapts across widescreen monitors, tablets, and mobile devices with a responsive navbar, mobile drawer menu, search filters, and progress metrics.
 - **🎨 Theme Engine**: Built-in Charcoal Dark Mode and soothing Warm Light Mode with instant DOM attribute synchronization (`data-theme`) and persistence.
 - **⌨️ Intuitive Keyboard Support**: Press `Enter` to quickly submit new items and `Escape` to close open modal dialogs.

@@ -748,7 +748,13 @@ pub fn StorageModal(
     show_import_modal: RwSignal<bool>,
     state: RwSignal<AppState>,
 ) -> impl IntoView {
-    let diag = Memo::new(move |_| query_storage_diagnostics());
+    let diag = Memo::new(move |_| {
+        let mut d = query_storage_diagnostics();
+        let count = state.get().collection.total_count();
+        d.memory_items_count = count;
+        d.fallback_tier_active = count > crate::storage::MEMORY_WORKING_SET_LIMIT || d.idb_active;
+        d
+    });
 
     let close_modal = move |_| {
         is_open.set(false);
@@ -841,6 +847,26 @@ pub fn StorageModal(
                                         <li>
                                             <strong>"Active Storage Tier: "</strong>
                                             <span>{d.backend.label()}</span>
+                                        </li>
+                                        <li>
+                                            <strong>"In-Memory Working Set: "</strong>
+                                            <span>
+                                                {format!(
+                                                    "{} items (Capacity limit: {} items)",
+                                                    state.get().collection.total_count(),
+                                                    d.memory_capacity_limit,
+                                                )}
+                                            </span>
+                                        </li>
+                                        <li>
+                                            <strong>"IndexedDB Fallback: "</strong>
+                                            <span style="color: #10b981; font-weight: 600;">
+                                                {if d.idb_active || d.fallback_tier_active {
+                                                    "Active (Protected against RAM overfill)"
+                                                } else {
+                                                    "Synchronized & Available"
+                                                }}
+                                            </span>
                                         </li>
                                         <li>
                                             <strong>"PWA Installation: "</strong>

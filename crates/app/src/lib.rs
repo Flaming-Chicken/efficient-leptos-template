@@ -56,7 +56,13 @@ pub fn App() -> impl IntoView {
     // Screen reader live announcements (WCAG 4.1.3)
     let announcement = RwSignal::new(String::new());
 
-    let diag = Memo::new(move |_| query_storage_diagnostics());
+    let diag = Memo::new(move |_| {
+        let mut d = query_storage_diagnostics();
+        let count = state.get().collection.total_count();
+        d.memory_items_count = count;
+        d.fallback_tier_active = count > crate::storage::MEMORY_WORKING_SET_LIMIT || d.idb_active;
+        d
+    });
 
     // Global keyboard listener for Escape key to close modals
     let on_keydown = move |ev: web_sys::KeyboardEvent| {

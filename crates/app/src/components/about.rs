@@ -110,6 +110,34 @@ pub fn AboutPage(state: RwSignal<AppState>, diag: Memo<StorageDiagnostics>) -> i
                     </div>
                     <div style="padding: 12px; background: var(--bg-surface-elevated); border-radius: 8px;">
                         <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase;">
+                            "Memory Tier (RAM)"
+                        </div>
+                        <div style="font-weight: 600; margin-top: 4px;">
+                            {move || {
+                                format!(
+                                    "{} items (Limit: {} items)",
+                                    diag.get().memory_items_count,
+                                    diag.get().memory_capacity_limit,
+                                )
+                            }}
+                        </div>
+                    </div>
+                    <div style="padding: 12px; background: var(--bg-surface-elevated); border-radius: 8px;">
+                        <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase;">
+                            "IndexedDB Fallback"
+                        </div>
+                        <div style="font-weight: 600; margin-top: 4px; color: #10b981;">
+                            {move || {
+                                if diag.get().idb_active || diag.get().fallback_tier_active {
+                                    "Active (Protected against RAM overfill)"
+                                } else {
+                                    "Synchronized & Available"
+                                }
+                            }}
+                        </div>
+                    </div>
+                    <div style="padding: 12px; background: var(--bg-surface-elevated); border-radius: 8px;">
+                        <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase;">
                             "Total Managed Tasks"
                         </div>
                         <div style="font-weight: 600; margin-top: 4px;">

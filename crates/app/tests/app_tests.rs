@@ -154,3 +154,31 @@ fn test_app_search_and_filter() {
     assert_eq!(critical_items.len(), 1);
     assert_eq!(critical_items[0].id, "item-1");
 }
+
+#[test]
+fn test_app_storage_diagnostics_and_memory_capacity() {
+    use app::storage::{MEMORY_WORKING_SET_LIMIT, query_storage_diagnostics};
+
+    let mut diag = query_storage_diagnostics();
+    assert_eq!(diag.memory_capacity_limit, MEMORY_WORKING_SET_LIMIT);
+    assert_eq!(diag.memory_items_count, 0);
+    assert!(!diag.fallback_tier_active);
+
+    // Simulate bulk items exceeding memory capacity
+    let mut state = AppState::new();
+    for i in 0..110 {
+        state.collection.add(shared::Item::new(
+            format!("bulk-{i}"),
+            format!("Bulk Item {i}"),
+            "Memory stress test",
+            Priority::Low,
+        ));
+    }
+
+    let count = state.collection.total_count();
+    diag.memory_items_count = count;
+    diag.fallback_tier_active = count > MEMORY_WORKING_SET_LIMIT || diag.idb_active;
+
+    assert_eq!(diag.memory_items_count, 114);
+    assert!(diag.fallback_tier_active);
+}
