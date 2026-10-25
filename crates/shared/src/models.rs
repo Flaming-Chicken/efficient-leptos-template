@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 
 pub use spodeian_tokens::ThemeMode;
 
-
 /// Task item priority level.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default)]
 pub enum Priority {

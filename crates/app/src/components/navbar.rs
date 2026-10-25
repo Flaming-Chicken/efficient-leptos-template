@@ -74,13 +74,11 @@ pub fn Navbar(
                     {move || {
                         if let Some(telemetry_sig) = show_telemetry_modal {
                             view! {
-                                <button
-                                    class="nav-btn"
-                                    on:click=move |_| telemetry_sig.set(true)
-                                >
+                                <button class="nav-btn" on:click=move |_| telemetry_sig.set(true)>
                                     "Telemetry"
                                 </button>
-                            }.into_any()
+                            }
+                                .into_any()
                         } else {
                             view! {}.into_any()
                         }
@@ -184,7 +182,8 @@ pub fn Navbar(
                                         >
                                             "Telemetry"
                                         </button>
-                                    }.into_any()
+                                    }
+                                        .into_any()
                                 } else {
                                     view! {}.into_any()
                                 }

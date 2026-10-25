@@ -9,8 +9,7 @@ use crate::components::theme::{
     apply_document_dyslexia, apply_document_theme, get_initial_dyslexia, get_initial_theme,
 };
 use crate::components::{
-    ExportModal, HelpModal, ImportModal, ItemList, Navbar, ResetModal, StorageModal,
-    TelemetryModal,
+    ExportModal, HelpModal, ImportModal, ItemList, Navbar, ResetModal, StorageModal, TelemetryModal,
 };
 use crate::storage::{
     load_state_from_storage, query_storage_diagnostics, request_persistent_storage,
@@ -228,10 +227,7 @@ pub fn App() -> impl IntoView {
                 show_import_modal=show_import_modal
                 state=state
             />
-            <TelemetryModal
-                is_open=show_telemetry_modal
-                announcement=announcement
-            />
+            <TelemetryModal is_open=show_telemetry_modal announcement=announcement />
         </div>
     }
 }

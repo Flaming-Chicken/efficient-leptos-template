@@ -9,4 +9,3 @@ pub use modals::{ExportModal, HelpModal, ImportModal, ResetModal, StorageModal};
 pub use navbar::Navbar;
 pub use telemetry_viewer::TelemetryModal;
 pub use theme::ThemeToggle;
-

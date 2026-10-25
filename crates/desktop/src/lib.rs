@@ -4,7 +4,6 @@
 pub fn run() {
     spodeian_telemetry::init_default();
 
-
     tracing::info!("Starting Leptos Native Application (Tauri v2)...");
 
     tauri::Builder::default()

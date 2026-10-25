@@ -2,7 +2,9 @@
 
 use serde::{Deserialize, Serialize};
 use shared::AppState;
-use spodeian_cache::{ContentAddressedStorage, PreferentialRouter};
+#[cfg(not(target_arch = "wasm32"))]
+use spodeian_cache::ContentAddressedStorage;
+use spodeian_cache::PreferentialRouter;
 #[allow(unused_imports)]
 use spodeian_cache::StorageTier;
 #[allow(unused_imports)]
@@ -148,7 +150,8 @@ pub fn save_state_to_storage(state: &AppState) -> StorageBackend {
     if let Ok(json_str) = shared::export_to_json(state) {
         let size = json_str.len();
         let is_large_or_binary = size > 512 * 1024;
-        let recommended_tier = PreferentialRouter::determine_tier(size, "application/json", is_large_or_binary);
+        let recommended_tier =
+            PreferentialRouter::determine_tier(size, "application/json", is_large_or_binary);
         let _ = &recommended_tier;
 
         #[cfg(target_arch = "wasm32")]
@@ -164,7 +167,10 @@ pub fn save_state_to_storage(state: &AppState) -> StorageBackend {
                             let k = wasm_bindgen::JsValue::from_str(STORAGE_KEY_STATE);
                             let v = wasm_bindgen::JsValue::from_str(&json_str);
                             let _ = func.call2(&window, &k, &v);
-                            info!("Preferentially stored large asset to Cache API [{}]", STORAGE_KEY_STATE);
+                            info!(
+                                "Preferentially stored large asset to Cache API [{}]",
+                                STORAGE_KEY_STATE
+                            );
                             return StorageBackend::CacheApi;
                         }
                     }
@@ -188,7 +194,10 @@ pub fn save_state_to_storage(state: &AppState) -> StorageBackend {
                         let k = wasm_bindgen::JsValue::from_str(STORAGE_KEY_STATE);
                         let v = wasm_bindgen::JsValue::from_str(&json_str);
                         let _ = func.call2(&window, &k, &v);
-                        info!("Saved structured state to IndexedDB [{}]", STORAGE_KEY_STATE);
+                        info!(
+                            "Saved structured state to IndexedDB [{}]",
+                            STORAGE_KEY_STATE
+                        );
                         return StorageBackend::IndexedDb;
                     }
                 }
@@ -212,4 +221,3 @@ pub use spodeian_web_utils::{
     copy_to_clipboard, trigger_binary_download, trigger_text_download,
     trigger_text_download as trigger_file_download,
 };
-

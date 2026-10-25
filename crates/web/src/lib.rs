@@ -6,7 +6,6 @@ use wasm_bindgen::prelude::*;
 pub fn main_js() {
     spodeian_telemetry::init_default();
 
-
     #[cfg(feature = "hydrate")]
     {
         let has_ssr_content = web_sys::window()

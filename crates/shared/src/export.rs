@@ -141,11 +141,12 @@ use spodeian_export::{escape_csv_field, parse_csv_line as parse_csv_fields};
 
 /// Exports the entire application state into compressed BSON binary bytes (Zlib-compressed BSON).
 pub fn export_to_compressed_bson(state: &AppState) -> Result<Vec<u8>, String> {
-    spodeian_export::export_to_compressed_bson(state).map_err(|e| format!("BSON serialization failed: {e}"))
+    spodeian_export::export_to_compressed_bson(state)
+        .map_err(|e| format!("BSON serialization failed: {e}"))
 }
 
 /// Imports and restores an AppState from a compressed (or raw) BSON slice.
 pub fn import_from_compressed_bson(bytes: &[u8]) -> Result<AppState, String> {
-    spodeian_export::import_from_compressed_bson(bytes).map_err(|e| format!("BSON deserialization failed: {e}"))
+    spodeian_export::import_from_compressed_bson(bytes)
+        .map_err(|e| format!("BSON deserialization failed: {e}"))
 }
-

@@ -26,25 +26,48 @@ pub fn TelemetryModal(
                         <span class="badge badge-success">"● Operational"</span>
                     </div>
 
-                    <div class="telemetry-kpis" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0;">
-                        <div class="kpi-card" style="padding: 10px; border: 1px solid var(--border-color, #333); border-radius: 6px;">
+                    <div
+                        class="telemetry-kpis"
+                        style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0;"
+                    >
+                        <div
+                            class="kpi-card"
+                            style="padding: 10px; border: 1px solid var(--border-color, #333); border-radius: 6px;"
+                        >
                             <div style="font-size: 11px; opacity: 0.7;">"Uptime"</div>
-                            <div style="font-size: 18px; font-weight: bold;">{move || format!("{}s", data.get().uptime_secs)}</div>
+                            <div style="font-size: 18px; font-weight: bold;">
+                                {move || format!("{}s", data.get().uptime_secs)}
+                            </div>
                             <div style="font-size: 10px; opacity: 0.6;">"Online Duration"</div>
                         </div>
-                        <div class="kpi-card" style="padding: 10px; border: 1px solid var(--border-color, #333); border-radius: 6px;">
+                        <div
+                            class="kpi-card"
+                            style="padding: 10px; border: 1px solid var(--border-color, #333); border-radius: 6px;"
+                        >
                             <div style="font-size: 11px; opacity: 0.7;">"Operations"</div>
-                            <div style="font-size: 18px; font-weight: bold;">{move || data.get().total_operations}</div>
+                            <div style="font-size: 18px; font-weight: bold;">
+                                {move || data.get().total_operations}
+                            </div>
                             <div style="font-size: 10px; opacity: 0.6;">"Total Processed"</div>
                         </div>
-                        <div class="kpi-card" style="padding: 10px; border: 1px solid var(--border-color, #333); border-radius: 6px;">
+                        <div
+                            class="kpi-card"
+                            style="padding: 10px; border: 1px solid var(--border-color, #333); border-radius: 6px;"
+                        >
                             <div style="font-size: 11px; opacity: 0.7;">"Success Rate"</div>
-                            <div style="font-size: 18px; font-weight: bold;">{move || format!("{:.2}%", data.get().success_rate)}</div>
+                            <div style="font-size: 18px; font-weight: bold;">
+                                {move || format!("{:.2}%", data.get().success_rate)}
+                            </div>
                             <div style="font-size: 10px; opacity: 0.6;">"Zero-Fault SLA"</div>
                         </div>
-                        <div class="kpi-card" style="padding: 10px; border: 1px solid var(--border-color, #333); border-radius: 6px;">
+                        <div
+                            class="kpi-card"
+                            style="padding: 10px; border: 1px solid var(--border-color, #333); border-radius: 6px;"
+                        >
                             <div style="font-size: 11px; opacity: 0.7;">"Throughput"</div>
-                            <div style="font-size: 18px; font-weight: bold;">{move || format!("{:.0} ops/s", data.get().throughput_ops_sec)}</div>
+                            <div style="font-size: 18px; font-weight: bold;">
+                                {move || format!("{:.0} ops/s", data.get().throughput_ops_sec)}
+                            </div>
                             <div style="font-size: 10px; opacity: 0.6;">"Peak Velocity"</div>
                         </div>
                     </div>
@@ -62,29 +85,41 @@ pub fn TelemetryModal(
                             </thead>
                             <tbody>
                                 {move || {
-                                    data.get().channels.into_iter().map(|ch| {
-                                        view! {
-                                            <tr style="border-bottom: 1px solid var(--border-subtle, #222);">
-                                                <td style="padding: 6px;">{ch.name}</td>
-                                                <td style="padding: 6px;">{ch.count}</td>
-                                                <td style="padding: 6px;">{format!("{:.2} ms", ch.latency_ms)}</td>
-                                                <td style="padding: 6px; color: var(--color-success, #4ade80);">{ch.status}</td>
-                                            </tr>
-                                        }
-                                    }).collect::<Vec<_>>()
+                                    data.get()
+                                        .channels
+                                        .into_iter()
+                                        .map(|ch| {
+                                            view! {
+                                                <tr style="border-bottom: 1px solid var(--border-subtle, #222);">
+                                                    <td style="padding: 6px;">{ch.name}</td>
+                                                    <td style="padding: 6px;">{ch.count}</td>
+                                                    <td style="padding: 6px;">
+                                                        {format!("{:.2} ms", ch.latency_ms)}
+                                                    </td>
+                                                    <td style="padding: 6px; color: var(--color-success, #4ade80);">
+                                                        {ch.status}
+                                                    </td>
+                                                </tr>
+                                            }
+                                        })
+                                        .collect::<Vec<_>>()
                                 }}
                             </tbody>
                         </table>
                     </div>
 
-                    <div class="modal-footer" style="margin-top: 20px; display: flex; justify-content: space-between;">
+                    <div
+                        class="modal-footer"
+                        style="margin-top: 20px; display: flex; justify-content: space-between;"
+                    >
                         <button
                             class="btn btn-secondary"
                             on:click=move |_| {
                                 if let Ok(json) = serde_json::to_string_pretty(&data.get()) {
                                     copy_to_clipboard(&json);
                                     if let Some(announcer) = announcement {
-                                        announcer.set("Telemetry snapshot copied to clipboard".to_string());
+                                        announcer
+                                            .set("Telemetry snapshot copied to clipboard".to_string());
                                     }
                                 }
                             }
