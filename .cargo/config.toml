@@ -11,3 +11,5 @@ rustflags = [
     # 3. Universal Target CPU
     "-C", "target-cpu=generic",
 ]
+runner = "wasm-bindgen-test-runner"
+

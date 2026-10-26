@@ -73,3 +73,30 @@ fn test_csv_roundtrip() {
         assert_eq!(orig.completed, imp.completed);
     }
 }
+
+#[test]
+fn test_reset_data() {
+    let mut state = AppState::new();
+    assert!(!state.collection.items.is_empty());
+    state.config.theme = ThemeMode::Light;
+
+    state.reset_data();
+    assert!(state.collection.items.is_empty());
+    assert_eq!(state.collection.total_count(), 0);
+    // Preserves configuration
+    assert_eq!(state.config.theme, ThemeMode::Light);
+}
+
+#[test]
+fn test_app_page_routing() {
+    let mut state = AppState::new();
+    assert_eq!(state.config.active_page, shared::AppPage::Dashboard);
+    assert_eq!(state.config.active_page.label(), "Dashboard");
+
+    state.config.active_page = shared::AppPage::About;
+    assert_eq!(state.config.active_page.label(), "About");
+
+    let serialized = serde_json::to_string(&state).expect("Serialization failed");
+    let deserialized: AppState = serde_json::from_str(&serialized).expect("Deserialization failed");
+    assert_eq!(deserialized.config.active_page, shared::AppPage::About);
+}

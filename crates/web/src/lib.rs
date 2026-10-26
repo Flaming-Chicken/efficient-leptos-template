@@ -1,18 +1,11 @@
+#![recursion_limit = "256"]
 //! WebAssembly client entry point for the Leptos template.
 
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen(start)]
 pub fn main_js() {
-    // Better panic errors in browser console
-    console_error_panic_hook::set_once();
-
-    // Initialize tracing logging for browser console
-    tracing_subscriber::fmt()
-        .with_writer(tracing_web::MakeConsoleWriter)
-        .without_time()
-        .with_ansi(false)
-        .init();
+    spodeian_telemetry::init_default();
 
     #[cfg(feature = "hydrate")]
     {

@@ -10,12 +10,12 @@ members = [
 # Shared metadata for all workspace packages
 [workspace.package]
 version = "0.1.0"
-authors = ["Liam <spodeian@proton.me>"]
+authors = ["Template Contributors <https://github.com/Flaming-Chicken>"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 description = "Modern, modular Serverless (WASM/Cloudflare Pages/PWA) & Native Desktop template built with Rust and Leptos"
-repository = "https://github.com/Spodeian/efficient-leptos-template"
+repository = "https://github.com/Flaming-Chicken/efficient-leptos-template"
 
 [workspace.dependencies]
 leptos = { version = "0.8", default-features = false }
@@ -58,6 +58,15 @@ shared = { path = "crates/shared" }
 app = { path = "crates/app" }
 tauri = { version = "2", features = ["config-toml"] }
 tauri-build = { version = "2", features = ["config-toml"] }
+spodeian-cache = { git = "https://github.com/Flaming-Chicken/spodeian-core", branch = "main", version = "^1.0.0" }
+spodeian-tokens = { git = "https://github.com/Flaming-Chicken/spodeian-core", branch = "main", version = "^1.0.0" }
+spodeian-telemetry = { git = "https://github.com/Flaming-Chicken/spodeian-core", branch = "main", version = "^1.0.0" }
+spodeian-export = { git = "https://github.com/Flaming-Chicken/spodeian-core", branch = "main", version = "^1.0.0" }
+spodeian-web-utils = { git = "https://github.com/Flaming-Chicken/spodeian-core", branch = "main", version = "^1.0.0" }
+criterion = "0.5"
+wasm-bindgen-test = "0.3"
+
+
 
 [profile.release]
 opt-level = 3

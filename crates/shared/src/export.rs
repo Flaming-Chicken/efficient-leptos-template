@@ -137,58 +137,16 @@ fn items_hash(val: &str) -> u32 {
     h
 }
 
-fn escape_csv_field(field: &str) -> String {
-    if field.contains(',') || field.contains('"') || field.contains('\n') || field.contains('\r') {
-        let escaped = field.replace('"', "\"\"");
-        format!("\"{}\"", escaped)
-    } else {
-        field.to_string()
-    }
-}
-
-fn parse_csv_fields(line: &str) -> Vec<String> {
-    let mut fields = Vec::new();
-    let mut current = String::new();
-    let mut in_quotes = false;
-    let mut chars = line.chars().peekable();
-
-    while let Some(ch) = chars.next() {
-        match ch {
-            '"' if in_quotes => {
-                if chars.peek() == Some(&'"') {
-                    chars.next();
-                    current.push('"');
-                } else {
-                    in_quotes = false;
-                }
-            }
-            '"' if !in_quotes => {
-                in_quotes = true;
-            }
-            ',' if !in_quotes => {
-                fields.push(current.trim().to_string());
-                current.clear();
-            }
-            _ => {
-                current.push(ch);
-            }
-        }
-    }
-    fields.push(current.trim().to_string());
-    fields
-}
+use spodeian_export::{escape_csv_field, parse_csv_line as parse_csv_fields};
 
 /// Exports the entire application state into compressed BSON binary bytes (Zlib-compressed BSON).
 pub fn export_to_compressed_bson(state: &AppState) -> Result<Vec<u8>, String> {
-    let bson_bytes =
-        bson::to_vec(state).map_err(|e| format!("BSON serialization failed: {}", e))?;
-    Ok(miniz_oxide::deflate::compress_to_vec_zlib(&bson_bytes, 6))
+    spodeian_export::export_to_compressed_bson(state)
+        .map_err(|e| format!("BSON serialization failed: {e}"))
 }
 
 /// Imports and restores an AppState from a compressed (or raw) BSON slice.
 pub fn import_from_compressed_bson(bytes: &[u8]) -> Result<AppState, String> {
-    let bson_bytes =
-        miniz_oxide::inflate::decompress_to_vec_zlib(bytes).unwrap_or_else(|_| bytes.to_vec());
-    bson::from_slice::<AppState>(&bson_bytes)
-        .map_err(|e| format!("BSON deserialization failed: {}", e))
+    spodeian_export::import_from_compressed_bson(bytes)
+        .map_err(|e| format!("BSON deserialization failed: {e}"))
 }

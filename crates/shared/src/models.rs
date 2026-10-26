@@ -2,91 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Theme preference mode.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-pub enum ThemeMode {
-    #[default]
-    Dark,
-    Light,
-    HighContrastDark,
-    HighContrastLight,
-}
-
-impl ThemeMode {
-    #[must_use]
-    pub fn is_dark(self) -> bool {
-        matches!(self, Self::Dark | Self::HighContrastDark)
-    }
-
-    #[must_use]
-    pub fn is_high_contrast(self) -> bool {
-        matches!(self, Self::HighContrastDark | Self::HighContrastLight)
-    }
-
-    #[must_use]
-    pub fn next(self) -> Self {
-        match self {
-            Self::Dark => Self::Light,
-            Self::Light => Self::HighContrastDark,
-            Self::HighContrastDark => Self::HighContrastLight,
-            Self::HighContrastLight => Self::Dark,
-        }
-    }
-
-    #[must_use]
-    pub fn toggle(self) -> Self {
-        self.next()
-    }
-
-    #[must_use]
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Dark => "dark",
-            Self::Light => "light",
-            Self::HighContrastDark => "high-contrast-dark",
-            Self::HighContrastLight => "high-contrast-light",
-        }
-    }
-
-    #[must_use]
-    #[allow(clippy::should_implement_trait)]
-    pub fn from_str(s: &str) -> Self {
-        match s {
-            "light" => Self::Light,
-            "high-contrast-dark" => Self::HighContrastDark,
-            "high-contrast-light" => Self::HighContrastLight,
-            _ => Self::Dark,
-        }
-    }
-
-    #[must_use]
-    pub fn display_label(self) -> &'static str {
-        match self {
-            Self::Dark => "Dark",
-            Self::Light => "Warm Light",
-            Self::HighContrastDark => "HC Dark",
-            Self::HighContrastLight => "HC Light",
-        }
-    }
-
-    #[must_use]
-    pub fn icon(self) -> &'static str {
-        match self {
-            Self::Dark => "🌙",
-            Self::Light => "☀️",
-            Self::HighContrastDark => "⬛",
-            Self::HighContrastLight => "⬜",
-        }
-    }
-}
-
-impl std::str::FromStr for ThemeMode {
-    type Err = std::convert::Infallible;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self::from_str(s))
-    }
-}
+pub use spodeian_tokens::ThemeMode;
 
 /// Task item priority level.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default)]
@@ -224,6 +140,10 @@ impl ItemCollection {
         }
     }
 
+    pub fn reset(&mut self) {
+        self.items.clear();
+    }
+
     pub fn total_count(&self) -> usize {
         self.items.len()
     }
@@ -244,6 +164,23 @@ impl ItemCollection {
     }
 }
 
+/// Active application view page.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum AppPage {
+    #[default]
+    Dashboard,
+    About,
+}
+
+impl AppPage {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Dashboard => "Dashboard",
+            Self::About => "About",
+        }
+    }
+}
+
 /// Global application configuration.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
@@ -253,6 +190,7 @@ pub struct AppConfig {
     pub show_completed: bool,
     pub filter_priority: Option<Priority>,
     pub search_query: String,
+    pub active_page: AppPage,
 }
 
 impl Default for AppConfig {
@@ -263,6 +201,7 @@ impl Default for AppConfig {
             show_completed: true,
             filter_priority: None,
             search_query: String::new(),
+            active_page: AppPage::Dashboard,
         }
     }
 }
@@ -281,5 +220,10 @@ impl AppState {
             collection: ItemCollection::with_sample_data(),
             config: AppConfig::default(),
         }
+    }
+
+    /// Resets app domain data while preserving configuration preferences like theme.
+    pub fn reset_data(&mut self) {
+        self.collection.reset();
     }
 }

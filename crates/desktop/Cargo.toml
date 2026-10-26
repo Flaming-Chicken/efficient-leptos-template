@@ -7,6 +7,10 @@ license.workspace = true
 repository.workspace = true
 description = "Native desktop runner for the Serverless & Desktop Leptos Template powered by Tauri v2"
 
+[lib]
+name = "desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
 [build-dependencies]
 tauri-build = { workspace = true }
 
@@ -17,4 +21,7 @@ tracing-subscriber = { workspace = true }
 app = { workspace = true, features = ["csr"] }
 leptos = { workspace = true, features = ["csr"] }
 shared = { workspace = true }
+spodeian-telemetry = { workspace = true }
+
+[target.'cfg(not(any(target_arch = "wasm32", target_os = "android", target_os = "ios")))'.dependencies]
 mimalloc = "0.1"

@@ -2,6 +2,11 @@
 
 use serde::{Deserialize, Serialize};
 use shared::AppState;
+#[cfg(not(target_arch = "wasm32"))]
+use spodeian_cache::ContentAddressedStorage;
+use spodeian_cache::PreferentialRouter;
+#[allow(unused_imports)]
+use spodeian_cache::StorageTier;
 #[allow(unused_imports)]
 use tracing::{error, info, warn};
 
@@ -17,6 +22,8 @@ pub enum StorageBackend {
     #[default]
     LocalStorage,
     IndexedDb,
+    CacheApi,
+    NativeCas,
     MemoryOnly,
 }
 
@@ -24,13 +31,20 @@ impl StorageBackend {
     pub fn label(self) -> &'static str {
         match self {
             Self::LocalStorage => "Local Storage (Fast Tier)",
-            Self::IndexedDb => "IndexedDB (Extended Quota Tier)",
+            Self::IndexedDb => "IndexedDB (Structured Relational Tier)",
+            Self::CacheApi => "Cache API (Large Binary Weights Tier)",
+            Self::NativeCas => "Native CAS (Content-Addressed Disk Tier)",
             Self::MemoryOnly => "In-Memory Only (Ephemeral)",
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+/// Target working capacity of items held directly in RAM for sub-microsecond latency.
+/// Once items exceed this threshold, the persistent fallback tier (IndexedDB on web, CAS on desktop)
+/// retains the complete durable dataset, preventing memory from overfilling.
+pub const MEMORY_WORKING_SET_LIMIT: usize = 100;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StorageDiagnostics {
     pub is_persisted: Option<bool>,
     pub pwa_install_available: bool,
@@ -38,6 +52,25 @@ pub struct StorageDiagnostics {
     pub backend: StorageBackend,
     pub quota_exceeded: bool,
     pub idb_active: bool,
+    pub memory_items_count: usize,
+    pub memory_capacity_limit: usize,
+    pub fallback_tier_active: bool,
+}
+
+impl Default for StorageDiagnostics {
+    fn default() -> Self {
+        Self {
+            is_persisted: None,
+            pwa_install_available: false,
+            is_pwa_installed: false,
+            backend: StorageBackend::default(),
+            quota_exceeded: false,
+            idb_active: false,
+            memory_items_count: 0,
+            memory_capacity_limit: MEMORY_WORKING_SET_LIMIT,
+            fallback_tier_active: false,
+        }
+    }
 }
 
 /// Query current storage persistence and PWA status from browser environment
@@ -132,143 +165,91 @@ pub fn load_state_from_storage() -> Option<AppState> {
     None
 }
 
-/// Saves the current application state using multi-tiered fallback (localStorage -> IndexedDB).
+/// Saves the current application state using preferential multi-tiered routing:
+/// - Cache API for large binaries / models (> 512 KB)
+/// - IndexedDB for structured relational states
+/// - LocalStorage for lightweight config (< 16 KB)
+/// - ContentAddressedStorage on native desktop & mobile
 pub fn save_state_to_storage(state: &AppState) -> StorageBackend {
-    #[cfg(target_arch = "wasm32")]
-    {
-        if let Some(window) = web_sys::window() {
-            if let Ok(json_str) = shared::export_to_json(state) {
-                let local_storage_failed = true;
-                if let Ok(Some(storage)) = window.local_storage() {
-                    match storage.set_item(STORAGE_KEY_STATE, &json_str) {
-                        Ok(()) => {
-                            return StorageBackend::LocalStorage;
-                        }
-                        Err(err) => {
-                            warn!(
-                                "localStorage save failed: {:?}, migrating to IndexedDB",
-                                err
-                            );
-                        }
-                    }
-                }
+    if let Ok(json_str) = shared::export_to_json(state) {
+        let size = json_str.len();
+        let is_large_or_binary = size > 512 * 1024;
+        let recommended_tier =
+            PreferentialRouter::determine_tier(size, "application/json", is_large_or_binary);
+        let _ = &recommended_tier;
 
-                if local_storage_failed {
+        #[cfg(target_arch = "wasm32")]
+        {
+            if let Some(window) = web_sys::window() {
+                // Tier 1 (Large/Binary): Cache API
+                if recommended_tier == StorageTier::CacheApi {
                     if let Ok(func) = js_sys::Reflect::get(
                         &window,
-                        &wasm_bindgen::JsValue::from_str("__saveToIndexedDB"),
+                        &wasm_bindgen::JsValue::from_str("__saveToCacheApi"),
                     ) {
                         if let Some(func) = func.dyn_ref::<js_sys::Function>() {
                             let k = wasm_bindgen::JsValue::from_str(STORAGE_KEY_STATE);
                             let v = wasm_bindgen::JsValue::from_str(&json_str);
                             let _ = func.call2(&window, &k, &v);
-                            info!("State migrated to IndexedDB fallback tier");
+                            info!(
+                                "Preferentially stored large asset to Cache API [{}]",
+                                STORAGE_KEY_STATE
+                            );
+                            return StorageBackend::CacheApi;
+                        }
+                    }
+                }
+
+                // Tier 2: Try localStorage for fast synchronous session data if small (< 16 KB)
+                let mut local_storage_saved = false;
+                if size < 16 * 1024 {
+                    if let Ok(Some(storage)) = window.local_storage() {
+                        if storage.set_item(STORAGE_KEY_STATE, &json_str).is_ok() {
+                            local_storage_saved = true;
+                        }
+                    }
+                }
+
+                // Tier 3: Always synchronize to IndexedDB as the durable structured fallback tier
+                // to protect memory from overfilling and ensure multi-megabyte persistence safety.
+                if let Ok(func) = js_sys::Reflect::get(
+                    &window,
+                    &wasm_bindgen::JsValue::from_str("__saveToIndexedDB"),
+                ) {
+                    if let Some(func) = func.dyn_ref::<js_sys::Function>() {
+                        let k = wasm_bindgen::JsValue::from_str(STORAGE_KEY_STATE);
+                        let v = wasm_bindgen::JsValue::from_str(&json_str);
+                        let _ = func.call2(&window, &k, &v);
+                        info!(
+                            "Synchronized structured state to IndexedDB fallback tier [{}]",
+                            STORAGE_KEY_STATE
+                        );
+                        if !local_storage_saved {
                             return StorageBackend::IndexedDb;
                         }
                     }
                 }
+
+                if local_storage_saved {
+                    return StorageBackend::LocalStorage;
+                }
+            }
+        }
+
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let cas_dir = std::env::temp_dir().join("leptos_template_cas_store");
+            if let Ok(cas) = ContentAddressedStorage::new(&cas_dir) {
+                let _ = cas.put(json_str.as_bytes());
+                return StorageBackend::NativeCas;
             }
         }
     }
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        let _ = state;
-    }
+
     StorageBackend::MemoryOnly
 }
 
-/// Triggers a browser file download for exported text data.
-pub fn trigger_file_download(filename: &str, content: &str, mime_type: &str) {
-    #[cfg(target_arch = "wasm32")]
-    {
-        if let Some(window) = web_sys::window() {
-            if let Some(document) = window.document() {
-                let blob_parts = js_sys::Array::new();
-                blob_parts.push(&wasm_bindgen::JsValue::from_str(content));
-                let blob_props = web_sys::BlobPropertyBag::new();
-                blob_props.set_type(mime_type);
-                match web_sys::Blob::new_with_str_sequence_and_options(&blob_parts, &blob_props) {
-                    Ok(blob) => {
-                        if let Ok(url) = web_sys::Url::create_object_url_with_blob(&blob) {
-                            if let Ok(element) = document.create_element("a") {
-                                if let Ok(anchor) = element.dyn_into::<web_sys::HtmlAnchorElement>()
-                                {
-                                    anchor.set_href(&url);
-                                    anchor.set_download(filename);
-                                    anchor.click();
-                                    let _ = web_sys::Url::revoke_object_url(&url);
-                                    info!("Triggered client-side download for '{}'", filename);
-                                }
-                            }
-                        }
-                    }
-                    Err(e) => error!("Failed to create download blob: {:?}", e),
-                }
-            }
-        }
-    }
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        let _ = mime_type;
-        match std::fs::write(filename, content) {
-            Ok(()) => info!("Successfully wrote local file: {}", filename),
-            Err(e) => error!("Failed to write export file '{}': {}", filename, e),
-        }
-    }
-}
-
-/// Triggers client-side binary download (e.g., Compressed BSON).
-pub fn trigger_binary_download(filename: &str, bytes: &[u8], mime_type: &str) {
-    #[cfg(target_arch = "wasm32")]
-    {
-        if let Some(window) = web_sys::window() {
-            if let Some(document) = window.document() {
-                let uint8_array = js_sys::Uint8Array::from(bytes);
-                let blob_parts = js_sys::Array::new();
-                blob_parts.push(&uint8_array.buffer());
-                let blob_props = web_sys::BlobPropertyBag::new();
-                blob_props.set_type(mime_type);
-                if let Ok(blob) =
-                    web_sys::Blob::new_with_u8_array_sequence_and_options(&blob_parts, &blob_props)
-                {
-                    if let Ok(url) = web_sys::Url::create_object_url_with_blob(&blob) {
-                        if let Ok(element) = document.create_element("a") {
-                            if let Ok(anchor) = element.dyn_into::<web_sys::HtmlAnchorElement>() {
-                                anchor.set_href(&url);
-                                anchor.set_download(filename);
-                                anchor.click();
-                                let _ = web_sys::Url::revoke_object_url(&url);
-                                info!("Triggered client-side binary download for '{}'", filename);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        let _ = mime_type;
-        match std::fs::write(filename, bytes) {
-            Ok(()) => info!("Successfully wrote binary file: {}", filename),
-            Err(e) => error!("Failed to write binary export file '{}': {}", filename, e),
-        }
-    }
-}
-
-/// Copies content to the system clipboard.
-pub fn copy_to_clipboard(text: &str) {
-    #[cfg(target_arch = "wasm32")]
-    {
-        if let Some(window) = web_sys::window() {
-            let navigator = window.navigator();
-            let clipboard = navigator.clipboard();
-            let _ = clipboard.write_text(text);
-            info!("Copied {} bytes to clipboard", text.len());
-        }
-    }
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        let _ = text;
-    }
-}
+pub use spodeian_web_utils::{
+    copy_to_clipboard, trigger_binary_download, trigger_text_download,
+    trigger_text_download as trigger_file_download,
+};

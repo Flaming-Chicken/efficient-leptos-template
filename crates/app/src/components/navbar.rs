@@ -14,8 +14,10 @@ pub fn Navbar(
     show_import_modal: RwSignal<bool>,
     show_export_modal: RwSignal<bool>,
     show_storage_modal: RwSignal<bool>,
+    #[prop(optional)] show_telemetry_modal: Option<RwSignal<bool>>,
     mobile_menu_open: RwSignal<bool>,
     #[prop(optional)] announcement: Option<RwSignal<String>>,
+    #[prop(optional)] active_page: Option<RwSignal<shared::AppPage>>,
 ) -> impl IntoView {
     let toggle_mobile_menu = move |_| {
         mobile_menu_open.update(|open| *open = !*open);
@@ -41,6 +43,44 @@ pub fn Navbar(
                 </div>
 
                 <nav class="desktop-nav">
+                    {move || {
+                        if let Some(page) = active_page {
+                            view! {
+                                <div
+                                    class="page-nav-group"
+                                    style="display: flex; gap: 4px; margin-right: 8px;"
+                                >
+                                    <button
+                                        class=move || {
+                                            if page.get() == shared::AppPage::Dashboard {
+                                                "nav-btn nav-btn-accent"
+                                            } else {
+                                                "nav-btn"
+                                            }
+                                        }
+                                        on:click=move |_| page.set(shared::AppPage::Dashboard)
+                                    >
+                                        "Dashboard"
+                                    </button>
+                                    <button
+                                        class=move || {
+                                            if page.get() == shared::AppPage::About {
+                                                "nav-btn nav-btn-accent"
+                                            } else {
+                                                "nav-btn"
+                                            }
+                                        }
+                                        on:click=move |_| page.set(shared::AppPage::About)
+                                    >
+                                        "About"
+                                    </button>
+                                </div>
+                            }
+                                .into_any()
+                        } else {
+                            view! {}.into_any()
+                        }
+                    }}
                     {move || {
                         let d = diag.get();
                         if d.pwa_install_available && !d.is_pwa_installed {
@@ -70,6 +110,18 @@ pub fn Navbar(
                     </button> <button class="nav-btn" on:click=move |_| show_export_modal.set(true)>
                         "Export"
                     </button>
+                    {move || {
+                        if let Some(telemetry_sig) = show_telemetry_modal {
+                            view! {
+                                <button class="nav-btn" on:click=move |_| telemetry_sig.set(true)>
+                                    "Telemetry"
+                                </button>
+                            }
+                                .into_any()
+                        } else {
+                            view! {}.into_any()
+                        }
+                    }}
                     <button
                         class="nav-btn nav-btn-subtle"
                         on:click=move |_| show_help_modal.set(true)
@@ -111,6 +163,36 @@ pub fn Navbar(
                 if mobile_menu_open.get() {
                     view! {
                         <div class="mobile-drawer">
+                            {move || {
+                                if let Some(page) = active_page {
+                                    view! {
+                                        <button
+                                            class="drawer-btn"
+                                            style="font-weight: 700; color: var(--accent);"
+                                            on:click=move |_| {
+                                                close_mobile_menu();
+                                                page.set(shared::AppPage::Dashboard);
+                                            }
+                                        >
+                                            "📊 Dashboard"
+                                        </button>
+                                        <button
+                                            class="drawer-btn"
+                                            style="font-weight: 700; color: var(--accent);"
+                                            on:click=move |_| {
+                                                close_mobile_menu();
+                                                page.set(shared::AppPage::About);
+                                            }
+                                        >
+                                            "ℹ️ About"
+                                        </button>
+                                        <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 6px 0;" />
+                                    }
+                                        .into_any()
+                                } else {
+                                    view! {}.into_any()
+                                }
+                            }}
                             {move || {
                                 let d = diag.get();
                                 if d.pwa_install_available && !d.is_pwa_installed {
@@ -157,6 +239,24 @@ pub fn Navbar(
                             >
                                 "Export Data"
                             </button>
+                            {move || {
+                                if let Some(telemetry_sig) = show_telemetry_modal {
+                                    view! {
+                                        <button
+                                            class="drawer-btn"
+                                            on:click=move |_| {
+                                                close_mobile_menu();
+                                                telemetry_sig.set(true);
+                                            }
+                                        >
+                                            "Telemetry"
+                                        </button>
+                                    }
+                                        .into_any()
+                                } else {
+                                    view! {}.into_any()
+                                }
+                            }}
                             <button
                                 class="drawer-btn"
                                 on:click=move |_| {

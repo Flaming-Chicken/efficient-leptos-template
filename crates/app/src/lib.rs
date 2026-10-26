@@ -1,3 +1,4 @@
+#![recursion_limit = "256"]
 //! Main Leptos UI application view controller, layout components, and state synchronization.
 #![allow(clippy::unit_arg)]
 #![allow(clippy::unused_unit)]
@@ -9,7 +10,8 @@ use crate::components::theme::{
     apply_document_dyslexia, apply_document_theme, get_initial_dyslexia, get_initial_theme,
 };
 use crate::components::{
-    ExportModal, HelpModal, ImportModal, ItemList, Navbar, ResetModal, StorageModal,
+    AboutPage, ExportModal, HelpModal, ImportModal, ItemList, Navbar, ResetModal, StorageModal,
+    TelemetryModal,
 };
 use crate::storage::{
     load_state_from_storage, query_storage_diagnostics, request_persistent_storage,
@@ -33,7 +35,9 @@ pub fn App() -> impl IntoView {
         info!("Initializing new default AppState");
         AppState::new()
     });
+    let initial_page = initial_state.config.active_page;
     let state = RwSignal::new(initial_state);
+    let active_page = RwSignal::new(initial_page);
 
     // Modal state signals
     let show_reset_modal = RwSignal::new(false);
@@ -41,6 +45,7 @@ pub fn App() -> impl IntoView {
     let show_import_modal = RwSignal::new(false);
     let show_export_modal = RwSignal::new(false);
     let show_storage_modal = RwSignal::new(false);
+    let show_telemetry_modal = RwSignal::new(false);
     let mobile_menu_open = RwSignal::new(false);
 
     // Warning banner dismissal signals
@@ -51,7 +56,13 @@ pub fn App() -> impl IntoView {
     // Screen reader live announcements (WCAG 4.1.3)
     let announcement = RwSignal::new(String::new());
 
-    let diag = Memo::new(move |_| query_storage_diagnostics());
+    let diag = Memo::new(move |_| {
+        let mut d = query_storage_diagnostics();
+        let count = state.get().collection.total_count();
+        d.memory_items_count = count;
+        d.fallback_tier_active = count > crate::storage::MEMORY_WORKING_SET_LIMIT || d.idb_active;
+        d
+    });
 
     // Global keyboard listener for Escape key to close modals
     let on_keydown = move |ev: web_sys::KeyboardEvent| {
@@ -61,6 +72,7 @@ pub fn App() -> impl IntoView {
             show_import_modal.set(false);
             show_export_modal.set(false);
             show_storage_modal.set(false);
+            show_telemetry_modal.set(false);
             mobile_menu_open.set(false);
         }
     };
@@ -92,8 +104,10 @@ pub fn App() -> impl IntoView {
                 show_import_modal=show_import_modal
                 show_export_modal=show_export_modal
                 show_storage_modal=show_storage_modal
+                show_telemetry_modal=show_telemetry_modal
                 mobile_menu_open=mobile_menu_open
                 announcement=announcement
+                active_page=active_page
             />
 
             <main id="main-content" class="main-wrapper" tabindex="-1">
@@ -189,7 +203,14 @@ pub fn App() -> impl IntoView {
                     }
                 }}
 
-                <ItemList state=state announcement=announcement />
+                {move || match active_page.get() {
+                    shared::AppPage::Dashboard => {
+                        view! { <ItemList state=state announcement=announcement /> }.into_any()
+                    }
+                    shared::AppPage::About => {
+                        view! { <AboutPage state=state diag=diag /> }.into_any()
+                    }
+                }}
             </main>
 
             <footer class="app-footer">
@@ -199,16 +220,28 @@ pub fn App() -> impl IntoView {
                         " • Serverless WASM (Cloudflare Pages) & Native Desktop (Tauri v2)"
                     </p>
                     <div class="footer-links">
-                        <a
-                            href="https://github.com/Spodeian/Revisited-IPIP-NEO"
-                            target="_blank"
-                            rel="noopener noreferrer"
+                        <button
+                            class="footer-nav-link"
+                            style="background: none; border: none; color: var(--accent); cursor: pointer; text-decoration: underline; font: inherit;"
+                            on:click=move |_| active_page.set(shared::AppPage::Dashboard)
                         >
-                            "Inspired by Revisited IPIP-NEO"
-                        </a>
+                            "Dashboard"
+                        </button>
+                        <span class="footer-dot">"•"</span>
+                        <button
+                            class="footer-nav-link"
+                            style="background: none; border: none; color: var(--accent); cursor: pointer; text-decoration: underline; font: inherit;"
+                            on:click=move |_| active_page.set(shared::AppPage::About)
+                        >
+                            "About"
+                        </button>
                         <span class="footer-dot">"•"</span>
                         <a href="https://leptos.dev" target="_blank" rel="noopener noreferrer">
                             "Leptos Docs"
+                        </a>
+                        <span class="footer-dot">"•"</span>
+                        <a href="https://v2.tauri.app" target="_blank" rel="noopener noreferrer">
+                            "Tauri v2 Docs"
                         </a>
                     </div>
                 </div>
@@ -224,6 +257,7 @@ pub fn App() -> impl IntoView {
                 show_import_modal=show_import_modal
                 state=state
             />
+            <TelemetryModal is_open=show_telemetry_modal announcement=announcement />
         </div>
     }
 }
