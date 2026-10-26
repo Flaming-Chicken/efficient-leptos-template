@@ -38,7 +38,9 @@ pub fn ItemList(
 
         state.update(|s| {
             s.collection.add(item);
-            save_state_to_storage(s);
+            if let Err(e) = save_state_to_storage(s) {
+                tracing::error!("Failed to persist state on item add: {e}");
+            }
         });
 
         if let Some(announcer) = announcement {
@@ -59,7 +61,9 @@ pub fn ItemList(
                 completed_state = item.completed;
                 item_title = item.title.clone();
             }
-            save_state_to_storage(s);
+            if let Err(e) = save_state_to_storage(s) {
+                tracing::error!("Failed to persist state on item toggle: {e}");
+            }
         });
         if let Some(announcer) = announcement {
             let status = if completed_state {
@@ -78,7 +82,9 @@ pub fn ItemList(
                 item_title = s.collection.items[pos].title.clone();
                 s.collection.items.remove(pos);
             }
-            save_state_to_storage(s);
+            if let Err(e) = save_state_to_storage(s) {
+                tracing::error!("Failed to persist state on item delete: {e}");
+            }
         });
         if let Some(announcer) = announcement {
             announcer.set(format!("Deleted task: {item_title}"));

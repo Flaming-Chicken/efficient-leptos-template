@@ -9,9 +9,23 @@ use spodeian_cache::PreferentialRouter;
 use spodeian_cache::StorageTier;
 #[allow(unused_imports)]
 use tracing::{error, info, warn};
+use thiserror::Error;
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::JsCast;
+
+/// Errors arising during state persistence or multi-tiered storage operations.
+#[derive(Error, Debug)]
+pub enum StorageError {
+    #[error("Export error: {0}")]
+    Export(#[from] shared::ExportError),
+    #[error("All browser storage tiers failed")]
+    AllTiersFailed,
+    #[error("I/O error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("Cache error: {0}")]
+    Cache(#[from] spodeian_cache::CacheError),
+}
 
 pub const STORAGE_KEY_STATE: &str = "serverless_leptos_app_state";
 pub const STORAGE_KEY_THEME: &str = "serverless_leptos_theme";
@@ -170,83 +184,84 @@ pub fn load_state_from_storage() -> Option<AppState> {
 /// - IndexedDB for structured relational states
 /// - LocalStorage for lightweight config (< 16 KB)
 /// - ContentAddressedStorage on native desktop & mobile
-pub fn save_state_to_storage(state: &AppState) -> StorageBackend {
-    if let Ok(json_str) = shared::export_to_json(state) {
-        let size = json_str.len();
-        let is_large_or_binary = size > 512 * 1024;
-        let recommended_tier =
-            PreferentialRouter::determine_tier(size, "application/json", is_large_or_binary);
-        let _ = &recommended_tier;
+pub fn save_state_to_storage(state: &AppState) -> Result<StorageBackend, StorageError> {
+    let json_str = shared::export_to_json(state)?;
+    let size = json_str.len();
+    let is_large_or_binary = size > 512 * 1024;
+    let recommended_tier =
+        PreferentialRouter::determine_tier(size, "application/json", is_large_or_binary);
+    let _ = &recommended_tier;
 
-        #[cfg(target_arch = "wasm32")]
-        {
-            if let Some(window) = web_sys::window() {
-                // Tier 1 (Large/Binary): Cache API
-                if recommended_tier == StorageTier::CacheApi {
-                    if let Ok(func) = js_sys::Reflect::get(
-                        &window,
-                        &wasm_bindgen::JsValue::from_str("__saveToCacheApi"),
-                    ) {
-                        if let Some(func) = func.dyn_ref::<js_sys::Function>() {
-                            let k = wasm_bindgen::JsValue::from_str(STORAGE_KEY_STATE);
-                            let v = wasm_bindgen::JsValue::from_str(&json_str);
-                            let _ = func.call2(&window, &k, &v);
-                            info!(
-                                "Preferentially stored large asset to Cache API [{}]",
-                                STORAGE_KEY_STATE
-                            );
-                            return StorageBackend::CacheApi;
-                        }
-                    }
-                }
-
-                // Tier 2: Try localStorage for fast synchronous session data if small (< 16 KB)
-                let mut local_storage_saved = false;
-                if size < 16 * 1024 {
-                    if let Ok(Some(storage)) = window.local_storage() {
-                        if storage.set_item(STORAGE_KEY_STATE, &json_str).is_ok() {
-                            local_storage_saved = true;
-                        }
-                    }
-                }
-
-                // Tier 3: Always synchronize to IndexedDB as the durable structured fallback tier
-                // to protect memory from overfilling and ensure multi-megabyte persistence safety.
+    #[cfg(target_arch = "wasm32")]
+    {
+        if let Some(window) = web_sys::window() {
+            // Tier 1 (Large/Binary): Cache API
+            if recommended_tier == StorageTier::CacheApi {
                 if let Ok(func) = js_sys::Reflect::get(
                     &window,
-                    &wasm_bindgen::JsValue::from_str("__saveToIndexedDB"),
+                    &wasm_bindgen::JsValue::from_str("__saveToCacheApi"),
                 ) {
                     if let Some(func) = func.dyn_ref::<js_sys::Function>() {
                         let k = wasm_bindgen::JsValue::from_str(STORAGE_KEY_STATE);
                         let v = wasm_bindgen::JsValue::from_str(&json_str);
                         let _ = func.call2(&window, &k, &v);
                         info!(
-                            "Synchronized structured state to IndexedDB fallback tier [{}]",
+                            "Preferentially stored large asset to Cache API [{}]",
                             STORAGE_KEY_STATE
                         );
-                        if !local_storage_saved {
-                            return StorageBackend::IndexedDb;
-                        }
+                        return Ok(StorageBackend::CacheApi);
                     }
                 }
+            }
 
-                if local_storage_saved {
-                    return StorageBackend::LocalStorage;
+            // Tier 2: Try localStorage for fast synchronous session data if small (< 16 KB)
+            let mut local_storage_saved = false;
+            if size < 16 * 1024 {
+                if let Ok(Some(storage)) = window.local_storage() {
+                    if storage.set_item(STORAGE_KEY_STATE, &json_str).is_ok() {
+                        local_storage_saved = true;
+                    }
                 }
             }
-        }
 
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            let cas_dir = std::env::temp_dir().join("leptos_template_cas_store");
-            if let Ok(cas) = ContentAddressedStorage::new(&cas_dir) {
-                let _ = cas.put(json_str.as_bytes());
-                return StorageBackend::NativeCas;
+            // Tier 3: Always synchronize to IndexedDB as the durable structured fallback tier
+            // to protect memory from overfilling and ensure multi-megabyte persistence safety.
+            if let Ok(func) = js_sys::Reflect::get(
+                &window,
+                &wasm_bindgen::JsValue::from_str("__saveToIndexedDB"),
+            ) {
+                if let Some(func) = func.dyn_ref::<js_sys::Function>() {
+                    let k = wasm_bindgen::JsValue::from_str(STORAGE_KEY_STATE);
+                    let v = wasm_bindgen::JsValue::from_str(&json_str);
+                    let _ = func.call2(&window, &k, &v);
+                    info!(
+                        "Synchronized structured state to IndexedDB fallback tier [{}]",
+                        STORAGE_KEY_STATE
+                    );
+                    if !local_storage_saved {
+                        return Ok(StorageBackend::IndexedDb);
+                    }
+                }
             }
+
+            if local_storage_saved {
+                return Ok(StorageBackend::LocalStorage);
+            }
+
+            return Err(StorageError::AllTiersFailed);
         }
     }
 
-    StorageBackend::MemoryOnly
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let cas_dir = std::env::temp_dir().join("leptos_template_cas_store");
+        if let Ok(cas) = ContentAddressedStorage::new(&cas_dir) {
+            let _ = cas.put(json_str.as_bytes());
+            return Ok(StorageBackend::NativeCas);
+        }
+    }
+
+    Ok(StorageBackend::MemoryOnly)
 }
 
 pub use spodeian_web_utils::{

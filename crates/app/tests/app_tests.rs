@@ -181,4 +181,8 @@ fn test_app_storage_diagnostics_and_memory_capacity() {
 
     assert_eq!(diag.memory_items_count, 114);
     assert!(diag.fallback_tier_active);
+
+    // Verify save_state_to_storage execution
+    let save_res = app::storage::save_state_to_storage(&state);
+    assert!(save_res.is_ok());
 }

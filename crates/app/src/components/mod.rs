@@ -1,3 +1,5 @@
+//! Modular Leptos components, views, modals, and navigation layout.
+
 pub mod about;
 pub mod item_list;
 pub mod modals;

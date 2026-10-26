@@ -52,7 +52,9 @@ pub fn ResetModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl In
     let confirm_reset = move |_| {
         let default_state = AppState::new();
         state.set(default_state.clone());
-        save_state_to_storage(&default_state);
+        if let Err(e) = save_state_to_storage(&default_state) {
+            tracing::error!("Failed to persist state on reset: {e}");
+        }
         is_open.set(false);
         info!("Application state reset to default sample dataset");
     };
@@ -330,7 +332,9 @@ pub fn ImportModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl I
                 Ok(new_state) => {
                     let count = new_state.collection.items.len();
                     state.set(new_state.clone());
-                    save_state_to_storage(&new_state);
+                    if let Err(e) = save_state_to_storage(&new_state) {
+                        tracing::error!("Failed to persist state on JSON import: {e}");
+                    }
                     status_message.set(Some(Ok(format!(
                         "Successfully imported {} items from JSON!",
                         count
@@ -346,7 +350,9 @@ pub fn ImportModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl I
                     let count = new_collection.items.len();
                     state.update(|s| {
                         s.collection = new_collection;
-                        save_state_to_storage(s);
+                        if let Err(e) = save_state_to_storage(s) {
+                            tracing::error!("Failed to persist state on CSV import: {e}");
+                        }
                     });
                     status_message.set(Some(Ok(format!(
                         "Successfully imported {} items from CSV!",
@@ -365,7 +371,9 @@ pub fn ImportModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl I
                         Ok(new_state) => {
                             let count = new_state.collection.items.len();
                             state.set(new_state.clone());
-                            save_state_to_storage(&new_state);
+                            if let Err(e) = save_state_to_storage(&new_state) {
+                                tracing::error!("Failed to persist state on BSON import: {e}");
+                            }
                             status_message.set(Some(Ok(format!(
                                 "Successfully imported {} items from compressed BSON!",
                                 count
