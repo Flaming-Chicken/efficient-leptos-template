@@ -1,18 +1,34 @@
-@import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&display=swap');
-
+// Atkinson Hyperlegible (SIL Open Font License, see public/fonts/OFL.txt) is served from
+// this site, not a font CDN: it works offline and needs no third-party hosts in the CSP.
 @font-face {
-  font-family: 'Symbols Nerd Font';
-  src: url('https://cdn.jsdelivr.net/npm/@nerdfonts/font-webfont@v3.2.1/SymbolsNerdFont-Regular.woff2') format('woff2');
-  font-weight: normal;
+  font-family: 'Atkinson Hyperlegible';
+  src: url('/fonts/atkinson-hyperlegible-latin-400-normal.woff2') format('woff2');
+  font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Symbols Nerd Font Mono';
-  src: url('https://cdn.jsdelivr.net/npm/@nerdfonts/font-webfont@v3.2.1/SymbolsNerdFontMono-Regular.woff2') format('woff2');
-  font-weight: normal;
+  font-family: 'Atkinson Hyperlegible';
+  src: url('/fonts/atkinson-hyperlegible-latin-400-italic.woff2') format('woff2');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Atkinson Hyperlegible';
+  src: url('/fonts/atkinson-hyperlegible-latin-700-normal.woff2') format('woff2');
+  font-weight: 700;
   font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Atkinson Hyperlegible';
+  src: url('/fonts/atkinson-hyperlegible-latin-700-italic.woff2') format('woff2');
+  font-weight: 700;
+  font-style: italic;
   font-display: swap;
 }
 
