@@ -13,6 +13,8 @@ app = { workspace = true, features = ["ssr"] }
 leptos = { workspace = true, features = ["ssr"] }
 leptos_axum = { workspace = true }
 tokio = { workspace = true }
+sha2 = { workspace = true }
+base64 = { workspace = true }
 
 # cargo-leptos builds the bin package with `--features ssr`; rendering is always
 # server-side here, so the feature only needs to exist.

@@ -60,6 +60,7 @@ console_error_panic_hook = "0.1"
 bson = "2"
 miniz_oxide = "0.8"
 base64 = "0.22"
+sha2 = "0.10"
 shared = { path = "crates/shared" }
 app = { path = "crates/app" }
 tauri = { version = "2", features = ["config-toml"] }
