@@ -3,7 +3,9 @@
 use crate::components::theme::{DyslexiaToggle, ThemeToggle};
 use crate::storage::{query_storage_diagnostics, trigger_pwa_install};
 use leptos::prelude::*;
-use shared::ThemeMode;
+use leptos_router::components::A;
+use leptos_router::hooks::use_location;
+use shared::{AppPage, ThemeMode};
 
 #[component]
 pub fn Navbar(
@@ -17,8 +19,25 @@ pub fn Navbar(
     #[prop(optional)] show_telemetry_modal: Option<RwSignal<bool>>,
     mobile_menu_open: RwSignal<bool>,
     #[prop(optional)] announcement: Option<RwSignal<String>>,
-    #[prop(optional)] active_page: Option<RwSignal<shared::AppPage>>,
 ) -> impl IntoView {
+    let location = use_location();
+    let current_page = Memo::new(move |_| AppPage::from_path(&location.pathname.get()));
+    // Header link: highlighted, and announced as the current page, when it is shown.
+    let page_link = move |page: AppPage, class: &'static str, active_class: &'static str| {
+        view! {
+            <A
+                href=page.path()
+                attr:class=move || {
+                    if current_page.get() == Some(page) { active_class } else { class }
+                }
+                attr:aria-current=move || (current_page.get() == Some(page)).then_some("page")
+                on:click=move |_| mobile_menu_open.set(false)
+            >
+                {page.label()}
+            </A>
+        }
+    };
+
     let toggle_mobile_menu = move |_| {
         mobile_menu_open.update(|open| *open = !*open);
     };
@@ -43,44 +62,10 @@ pub fn Navbar(
                 </div>
 
                 <nav class="desktop-nav">
-                    {move || {
-                        if let Some(page) = active_page {
-                            view! {
-                                <div
-                                    class="page-nav-group"
-                                    style="display: flex; gap: 4px; margin-right: 8px;"
-                                >
-                                    <button
-                                        class=move || {
-                                            if page.get() == shared::AppPage::Dashboard {
-                                                "nav-btn nav-btn-accent"
-                                            } else {
-                                                "nav-btn"
-                                            }
-                                        }
-                                        on:click=move |_| page.set(shared::AppPage::Dashboard)
-                                    >
-                                        "Dashboard"
-                                    </button>
-                                    <button
-                                        class=move || {
-                                            if page.get() == shared::AppPage::About {
-                                                "nav-btn nav-btn-accent"
-                                            } else {
-                                                "nav-btn"
-                                            }
-                                        }
-                                        on:click=move |_| page.set(shared::AppPage::About)
-                                    >
-                                        "About"
-                                    </button>
-                                </div>
-                            }
-                                .into_any()
-                        } else {
-                            view! {}.into_any()
-                        }
-                    }}
+                    <div class="page-nav-group" style="display: flex; gap: 4px; margin-right: 8px;">
+                        {page_link(AppPage::Dashboard, "nav-btn", "nav-btn nav-btn-accent")}
+                        {page_link(AppPage::About, "nav-btn", "nav-btn nav-btn-accent")}
+                    </div>
                     {move || {
                         let d = diag.get();
                         if d.pwa_install_available && !d.is_pwa_installed {
@@ -96,7 +81,8 @@ pub fn Navbar(
                         } else {
                             view! {}.into_any()
                         }
-                    }} <button class="nav-btn" on:click=move |_| show_storage_modal.set(true)>
+                    }}
+                    <button class="nav-btn" on:click=move |_| show_storage_modal.set(true)>
                         {move || {
                             let d = diag.get();
                             match d.is_persisted {
@@ -105,9 +91,11 @@ pub fn Navbar(
                                 None => "Storage",
                             }
                         }}
-                    </button> <button class="nav-btn" on:click=move |_| show_import_modal.set(true)>
+                    </button>
+                    <button class="nav-btn" on:click=move |_| show_import_modal.set(true)>
                         "Import"
-                    </button> <button class="nav-btn" on:click=move |_| show_export_modal.set(true)>
+                    </button>
+                    <button class="nav-btn" on:click=move |_| show_export_modal.set(true)>
                         "Export"
                     </button>
                     {move || {
@@ -163,36 +151,17 @@ pub fn Navbar(
                 if mobile_menu_open.get() {
                     view! {
                         <div class="mobile-drawer">
-                            {move || {
-                                if let Some(page) = active_page {
-                                    view! {
-                                        <button
-                                            class="drawer-btn"
-                                            style="font-weight: 700; color: var(--accent);"
-                                            on:click=move |_| {
-                                                close_mobile_menu();
-                                                page.set(shared::AppPage::Dashboard);
-                                            }
-                                        >
-                                            "📊 Dashboard"
-                                        </button>
-                                        <button
-                                            class="drawer-btn"
-                                            style="font-weight: 700; color: var(--accent);"
-                                            on:click=move |_| {
-                                                close_mobile_menu();
-                                                page.set(shared::AppPage::About);
-                                            }
-                                        >
-                                            "ℹ️ About"
-                                        </button>
-                                        <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 6px 0;" />
-                                    }
-                                        .into_any()
-                                } else {
-                                    view! {}.into_any()
-                                }
-                            }}
+                            {page_link(
+                                AppPage::Dashboard,
+                                "drawer-btn",
+                                "drawer-btn drawer-btn-active",
+                            )}
+                            {page_link(
+                                AppPage::About,
+                                "drawer-btn",
+                                "drawer-btn drawer-btn-active",
+                            )}
+                            <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 6px 0;" />
                             {move || {
                                 let d = diag.get();
                                 if d.pwa_install_available && !d.is_pwa_installed {

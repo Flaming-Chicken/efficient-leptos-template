@@ -369,6 +369,30 @@ html, body {
     color: var(--danger);
 }
 
+/* Page links render as <a>, so keep them looking like the buttons around them. */
+a.drawer-btn,
+a.nav-btn {
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+}
+
+.drawer-btn-active {
+    font-weight: 700;
+    color: var(--accent-primary);
+    border-color: var(--accent-primary);
+}
+
+.not-found {
+    max-width: 40rem;
+    margin: 4rem auto;
+    text-align: center;
+}
+
+.not-found a {
+    color: var(--accent-primary);
+}
+
 .drawer-theme {
     margin-top: 0.5rem;
 }

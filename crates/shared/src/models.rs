@@ -164,7 +164,7 @@ impl ItemCollection {
     }
 }
 
-/// Active application view page.
+/// The application's pages. The URL path is the source of truth for which one is shown.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum AppPage {
     #[default]
@@ -173,10 +173,40 @@ pub enum AppPage {
 }
 
 impl AppPage {
+    /// Every page, in navigation order.
+    pub const ALL: [AppPage; 2] = [AppPage::Dashboard, AppPage::About];
+
     pub fn label(self) -> &'static str {
         match self {
             Self::Dashboard => "Dashboard",
             Self::About => "About",
+        }
+    }
+
+    /// The URL path that shows this page.
+    pub fn path(self) -> &'static str {
+        match self {
+            Self::Dashboard => "/",
+            Self::About => "/about",
+        }
+    }
+
+    /// The page shown at `path`, ignoring a trailing slash, or `None` if no page lives there.
+    pub fn from_path(path: &str) -> Option<Self> {
+        let trimmed = path.trim_end_matches('/');
+        let normalized = if trimmed.is_empty() { "/" } else { trimmed };
+        Self::ALL.into_iter().find(|page| page.path() == normalized)
+    }
+
+    /// One-sentence page description for search engines and link previews.
+    pub fn description(self) -> &'static str {
+        match self {
+            Self::Dashboard => {
+                "Manage items with search, priority filters and live statistics, saved in your browser."
+            }
+            Self::About => {
+                "How this Leptos template is built: architecture, storage tiers, diagnostics and keyboard shortcuts."
+            }
         }
     }
 }
@@ -190,7 +220,6 @@ pub struct AppConfig {
     pub show_completed: bool,
     pub filter_priority: Option<Priority>,
     pub search_query: String,
-    pub active_page: AppPage,
 }
 
 impl Default for AppConfig {
@@ -201,7 +230,6 @@ impl Default for AppConfig {
             show_completed: true,
             filter_priority: None,
             search_query: String::new(),
-            active_page: AppPage::Dashboard,
         }
     }
 }

@@ -207,7 +207,7 @@ jobs:
           else
             export GECKODRIVER="$GECKOWEBDRIVER/geckodriver"
           fi
-          cargo test -p web --features csr --test wasm_tests --target wasm32-unknown-unknown
+          cargo test -p web --features csr --tests --target wasm32-unknown-unknown
 
   mobile-build-check:
     name: Mobile Build Check (Android & iOS)

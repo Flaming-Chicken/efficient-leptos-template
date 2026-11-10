@@ -88,15 +88,23 @@ fn test_reset_data() {
 }
 
 #[test]
-fn test_app_page_routing() {
-    let mut state = AppState::new();
-    assert_eq!(state.config.active_page, shared::AppPage::Dashboard);
-    assert_eq!(state.config.active_page.label(), "Dashboard");
+fn test_app_page_paths_round_trip() {
+    use shared::AppPage;
 
-    state.config.active_page = shared::AppPage::About;
-    assert_eq!(state.config.active_page.label(), "About");
+    for page in AppPage::ALL {
+        assert_eq!(AppPage::from_path(page.path()), Some(page));
+        assert!(!page.description().is_empty());
+    }
+    assert_eq!(AppPage::from_path("/about/"), Some(AppPage::About));
+    assert_eq!(AppPage::from_path(""), Some(AppPage::Dashboard));
+    assert_eq!(AppPage::from_path("/missing"), None);
+    assert_eq!(AppPage::About.label(), "About");
+}
 
-    let serialized = serde_json::to_string(&state).expect("Serialization failed");
-    let deserialized: AppState = serde_json::from_str(&serialized).expect("Deserialization failed");
-    assert_eq!(deserialized.config.active_page, shared::AppPage::About);
+#[test]
+fn test_state_saved_before_url_routing_still_loads() {
+    // Saved states from before URL routing carry an `active_page` field; it is ignored.
+    let legacy = r#"{"collection":{"items":[]},"config":{"theme":"Light","active_page":"About"}}"#;
+    let state: AppState = serde_json::from_str(legacy).expect("legacy state should load");
+    assert_eq!(state.config.theme, ThemeMode::Light);
 }

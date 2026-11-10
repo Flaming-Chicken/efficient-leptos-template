@@ -18,11 +18,38 @@ use crate::storage::{
     trigger_binary_download,
 };
 use leptos::prelude::*;
-use shared::{AppState, export_to_compressed_bson};
+use leptos_meta::{Meta, Title, provide_meta_context};
+use leptos_router::components::{A, Route, Router, Routes};
+use leptos_router::path;
+use shared::{AppPage, AppState, export_to_compressed_bson};
 use tracing::info;
+
+/// Sets the document title and description for one page.
+#[component]
+fn PageMeta(page: AppPage) -> impl IntoView {
+    view! {
+        <Title text=format!("{} | Leptos Serverless & Desktop Template", page.label()) />
+        <Meta name="description" content=page.description() />
+    }
+}
+
+/// Shown for any URL that has no page.
+#[component]
+fn NotFound() -> impl IntoView {
+    view! {
+        <Title text="Page not found | Leptos Serverless & Desktop Template" />
+        <section class="not-found">
+            <h1>"Page not found"</h1>
+            <p>"There is no page at this address."</p>
+            <A href=AppPage::Dashboard.path()>"Go to the dashboard"</A>
+        </section>
+    }
+}
 
 #[component]
 pub fn App() -> impl IntoView {
+    provide_meta_context();
+
     // Initialize Theme & Typography
     let theme = RwSignal::new(get_initial_theme());
     apply_document_theme(theme.get());
@@ -35,9 +62,7 @@ pub fn App() -> impl IntoView {
         info!("Initializing new default AppState");
         AppState::new()
     });
-    let initial_page = initial_state.config.active_page;
     let state = RwSignal::new(initial_state);
-    let active_page = RwSignal::new(initial_page);
 
     // Modal state signals
     let show_reset_modal = RwSignal::new(false);
@@ -85,179 +110,194 @@ pub fn App() -> impl IntoView {
     };
 
     view! {
-        <div class="app-root" on:keydown=on_keydown tabindex="0">
-            // Accessible Skip Link for Keyboard Navigation (WCAG 2.4.1)
-            <a href="#main-content" class="skip-to-content">
-                "Skip to main content"
-            </a>
+        <Router>
+            <div class="app-root" on:keydown=on_keydown tabindex="0">
+                // Accessible Skip Link for Keyboard Navigation (WCAG 2.4.1)
+                <a href="#main-content" class="skip-to-content">
+                    "Skip to main content"
+                </a>
 
-            // ARIA Live Region for Screen Reader Announcements (WCAG 4.1.3)
-            <div role="status" aria-live="polite" aria-atomic="true" class="sr-only">
-                {move || announcement.get()}
-            </div>
-
-            <Navbar
-                theme=theme
-                dyslexia=dyslexia
-                show_reset_modal=show_reset_modal
-                show_help_modal=show_help_modal
-                show_import_modal=show_import_modal
-                show_export_modal=show_export_modal
-                show_storage_modal=show_storage_modal
-                show_telemetry_modal=show_telemetry_modal
-                mobile_menu_open=mobile_menu_open
-                announcement=announcement
-                active_page=active_page
-            />
-
-            <main id="main-content" class="main-wrapper" tabindex="-1">
-                // Diagnostics / Warning Banners
-                {move || {
-                    let d = diag.get();
-                    let is_ephemeral = d.is_persisted == Some(false);
-                    let is_quota = d.quota_exceeded;
-                    let show_combined = is_ephemeral && is_quota && !dismissed_combined.get();
-                    let show_ephemeral = is_ephemeral && !dismissed_ephemeral.get();
-                    let show_quota = is_quota && !dismissed_quota.get();
-                    if show_combined || show_ephemeral || show_quota {
-                        let (alert_class, bg_style, border_style, text_msg) = if show_combined {
-                            (
-                                "banner-alert banner-danger",
-                                "background: rgba(35, 20, 20, 0.95);",
-                                "border: 1px solid var(--danger);",
-
-                                view! {
-                                    <span style="color: rgb(255, 120, 120);">
-                                        <strong>"Storage Warning: "</strong>
-                                        "Running in ephemeral storage and quota is full."
-                                    </span>
-                                }
-                                    .into_any(),
-                            )
-                        } else if show_ephemeral {
-                            (
-                                "banner-alert banner-warning",
-                                "background: rgba(35, 28, 15, 0.95);",
-                                "border: 1px solid var(--warning);",
-                                view! {
-                                    <span style="color: rgb(255, 200, 80);">
-                                        <strong>"Ephemeral Storage: "</strong>
-                                        "Browser may clear local data under storage pressure."
-                                    </span>
-                                }
-                                    .into_any(),
-                            )
-                        } else {
-                            (
-                                "banner-alert banner-warning",
-                                "background: rgba(35, 28, 15, 0.95);",
-                                "border: 1px solid var(--warning);",
-                                view! {
-                                    <span style="color: rgb(255, 200, 80);">
-                                        <strong>"Quota Exceeded: "</strong>
-                                        "Data migrated to IndexedDB fallback tier."
-                                    </span>
-                                }
-                                    .into_any(),
-                            )
-                        };
-                        let on_dismiss = move |_| {
-                            if show_combined {
-                                dismissed_combined.set(true);
-                            } else if show_ephemeral {
-                                dismissed_ephemeral.set(true);
-                            } else {
-                                dismissed_quota.set(true);
-                            }
-                        };
-
-                        view! {
-                            <div
-                                class=alert_class
-                                style=format!(
-                                    "position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; padding: 12px 18px; {} {} border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: flex; flex-direction: column; align-items: center; gap: 8px; max-width: 90vw; width: max-content;",
-                                    bg_style,
-                                    border_style,
-                                )
-                            >
-                                <div>{text_msg}</div>
-                                <div style="display: flex; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap;">
-                                    <button class="btn btn-sm btn-primary" on:click=on_backup_bson>
-                                        "Save .bson Backup"
-                                    </button>
-                                    <button
-                                        class="btn btn-sm btn-outline"
-                                        on:click=move |_| request_persistent_storage()
-                                    >
-                                        "Request Persistence"
-                                    </button>
-                                    <button class="btn btn-sm btn-secondary" on:click=on_dismiss>
-                                        "Dismiss"
-                                    </button>
-                                </div>
-                            </div>
-                        }
-                            .into_any()
-                    } else {
-                        view! {}.into_any()
-                    }
-                }}
-
-                {move || match active_page.get() {
-                    shared::AppPage::Dashboard => {
-                        view! { <ItemList state=state announcement=announcement /> }.into_any()
-                    }
-                    shared::AppPage::About => {
-                        view! { <AboutPage state=state diag=diag /> }.into_any()
-                    }
-                }}
-            </main>
-
-            <footer class="app-footer">
-                <div class="footer-container">
-                    <p>
-                        "Built with " <strong>"Rust & Leptos 0.8"</strong>
-                        " • Serverless WASM (Cloudflare Pages) & Native Desktop (Tauri v2)"
-                    </p>
-                    <div class="footer-links">
-                        <button
-                            class="footer-nav-link"
-                            style="background: none; border: none; color: var(--accent); cursor: pointer; text-decoration: underline; font: inherit;"
-                            on:click=move |_| active_page.set(shared::AppPage::Dashboard)
-                        >
-                            "Dashboard"
-                        </button>
-                        <span class="footer-dot">"•"</span>
-                        <button
-                            class="footer-nav-link"
-                            style="background: none; border: none; color: var(--accent); cursor: pointer; text-decoration: underline; font: inherit;"
-                            on:click=move |_| active_page.set(shared::AppPage::About)
-                        >
-                            "About"
-                        </button>
-                        <span class="footer-dot">"•"</span>
-                        <a href="https://leptos.dev" target="_blank" rel="noopener noreferrer">
-                            "Leptos Docs"
-                        </a>
-                        <span class="footer-dot">"•"</span>
-                        <a href="https://v2.tauri.app" target="_blank" rel="noopener noreferrer">
-                            "Tauri v2 Docs"
-                        </a>
-                    </div>
+                // ARIA Live Region for Screen Reader Announcements (WCAG 4.1.3)
+                <div role="status" aria-live="polite" aria-atomic="true" class="sr-only">
+                    {move || announcement.get()}
                 </div>
-            </footer>
 
-            // Modals
-            <ResetModal is_open=show_reset_modal state=state />
-            <HelpModal is_open=show_help_modal />
-            <ImportModal is_open=show_import_modal state=state />
-            <ExportModal is_open=show_export_modal state=state />
-            <StorageModal
-                is_open=show_storage_modal
-                show_import_modal=show_import_modal
-                state=state
-            />
-            <TelemetryModal is_open=show_telemetry_modal announcement=announcement />
-        </div>
+                <Navbar
+                    theme=theme
+                    dyslexia=dyslexia
+                    show_reset_modal=show_reset_modal
+                    show_help_modal=show_help_modal
+                    show_import_modal=show_import_modal
+                    show_export_modal=show_export_modal
+                    show_storage_modal=show_storage_modal
+                    show_telemetry_modal=show_telemetry_modal
+                    mobile_menu_open=mobile_menu_open
+                    announcement=announcement
+                />
+
+                <main id="main-content" class="main-wrapper" tabindex="-1">
+                    // Diagnostics / Warning Banners
+                    {move || {
+                        let d = diag.get();
+                        let is_ephemeral = d.is_persisted == Some(false);
+                        let is_quota = d.quota_exceeded;
+                        let show_combined = is_ephemeral && is_quota && !dismissed_combined.get();
+                        let show_ephemeral = is_ephemeral && !dismissed_ephemeral.get();
+                        let show_quota = is_quota && !dismissed_quota.get();
+                        if show_combined || show_ephemeral || show_quota {
+                            let (alert_class, bg_style, border_style, text_msg) = if show_combined {
+                                (
+                                    "banner-alert banner-danger",
+                                    "background: rgba(35, 20, 20, 0.95);",
+                                    "border: 1px solid var(--danger);",
+
+                                    view! {
+                                        <span style="color: rgb(255, 120, 120);">
+                                            <strong>"Storage Warning: "</strong>
+                                            "Running in ephemeral storage and quota is full."
+                                        </span>
+                                    }
+                                        .into_any(),
+                                )
+                            } else if show_ephemeral {
+                                (
+                                    "banner-alert banner-warning",
+                                    "background: rgba(35, 28, 15, 0.95);",
+                                    "border: 1px solid var(--warning);",
+                                    view! {
+                                        <span style="color: rgb(255, 200, 80);">
+                                            <strong>"Ephemeral Storage: "</strong>
+                                            "Browser may clear local data under storage pressure."
+                                        </span>
+                                    }
+                                        .into_any(),
+                                )
+                            } else {
+                                (
+                                    "banner-alert banner-warning",
+                                    "background: rgba(35, 28, 15, 0.95);",
+                                    "border: 1px solid var(--warning);",
+                                    view! {
+                                        <span style="color: rgb(255, 200, 80);">
+                                            <strong>"Quota Exceeded: "</strong>
+                                            "Data migrated to IndexedDB fallback tier."
+                                        </span>
+                                    }
+                                        .into_any(),
+                                )
+                            };
+                            let on_dismiss = move |_| {
+                                if show_combined {
+                                    dismissed_combined.set(true);
+                                } else if show_ephemeral {
+                                    dismissed_ephemeral.set(true);
+                                } else {
+                                    dismissed_quota.set(true);
+                                }
+                            };
+
+                            view! {
+                                <div
+                                    class=alert_class
+                                    style=format!(
+                                        "position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; padding: 12px 18px; {} {} border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: flex; flex-direction: column; align-items: center; gap: 8px; max-width: 90vw; width: max-content;",
+                                        bg_style,
+                                        border_style,
+                                    )
+                                >
+                                    <div>{text_msg}</div>
+                                    <div style="display: flex; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                        <button
+                                            class="btn btn-sm btn-primary"
+                                            on:click=on_backup_bson
+                                        >
+                                            "Save .bson Backup"
+                                        </button>
+                                        <button
+                                            class="btn btn-sm btn-outline"
+                                            on:click=move |_| request_persistent_storage()
+                                        >
+                                            "Request Persistence"
+                                        </button>
+                                        <button
+                                            class="btn btn-sm btn-secondary"
+                                            on:click=on_dismiss
+                                        >
+                                            "Dismiss"
+                                        </button>
+                                    </div>
+                                </div>
+                            }
+                                .into_any()
+                        } else {
+                            view! {}.into_any()
+                        }
+                    }}
+
+                    <Routes fallback=NotFound>
+                        <Route
+                            path=path!("/")
+                            view=move || {
+                                view! {
+                                    <PageMeta page=AppPage::Dashboard />
+                                    <ItemList state=state announcement=announcement />
+                                }
+                            }
+                        />
+                        <Route
+                            path=path!("/about")
+                            view=move || {
+                                view! {
+                                    <PageMeta page=AppPage::About />
+                                    <AboutPage state=state diag=diag />
+                                }
+                            }
+                        />
+                    </Routes>
+                </main>
+
+                <footer class="app-footer">
+                    <div class="footer-container">
+                        <p>
+                            "Built with " <strong>"Rust & Leptos 0.8"</strong>
+                            " • Serverless WASM (Cloudflare Pages) & Native Desktop (Tauri v2)"
+                        </p>
+                        <div class="footer-links">
+                            <A href=AppPage::Dashboard.path() attr:class="footer-nav-link">
+                                "Dashboard"
+                            </A>
+                            <span class="footer-dot">"•"</span>
+                            <A href=AppPage::About.path() attr:class="footer-nav-link">
+                                "About"
+                            </A>
+                            <span class="footer-dot">"•"</span>
+                            <a href="https://leptos.dev" target="_blank" rel="noopener noreferrer">
+                                "Leptos Docs"
+                            </a>
+                            <span class="footer-dot">"•"</span>
+                            <a
+                                href="https://v2.tauri.app"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            >
+                                "Tauri v2 Docs"
+                            </a>
+                        </div>
+                    </div>
+                </footer>
+
+                // Modals
+                <ResetModal is_open=show_reset_modal state=state />
+                <HelpModal is_open=show_help_modal />
+                <ImportModal is_open=show_import_modal state=state />
+                <ExportModal is_open=show_export_modal state=state />
+                <StorageModal
+                    is_open=show_storage_modal
+                    show_import_modal=show_import_modal
+                    state=state
+                />
+                <TelemetryModal is_open=show_telemetry_modal announcement=announcement />
+            </div>
+        </Router>
     }
 }
