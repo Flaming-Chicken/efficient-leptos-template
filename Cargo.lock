@@ -86,7 +86,7 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
 name = "app"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.22.1",
  "js-sys",
@@ -1028,7 +1028,7 @@ dependencies = [
 
 [[package]]
 name = "desktop"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "mimalloc",
  "spodeian-telemetry",
@@ -4265,7 +4265,7 @@ dependencies = [
 
 [[package]]
 name = "shared"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "criterion",
  "serde",
@@ -4450,7 +4450,7 @@ dependencies = [
 
 [[package]]
 name = "ssg"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "app",
  "base64 0.22.1",
@@ -5699,7 +5699,7 @@ dependencies = [
 
 [[package]]
 name = "web"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "app",
  "js-sys",
