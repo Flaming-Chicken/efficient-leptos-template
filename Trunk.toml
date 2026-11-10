@@ -1,10 +1,11 @@
+# Trunk builds the DESKTOP bundle only (client-side rendering, loaded by Tauri).
+# The web release is built by scripts/build-web.sh.
 [build]
 target = "crates/web/index.html"
 dist = "crates/web/dist"
 public_url = "/"
-wasm_opt = "0"
 
 [serve]
-address = "127.0.0.1"
+addresses = ["127.0.0.1"]
 port = 8080
 open = false
