@@ -89,25 +89,22 @@ name = "app"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
- "bson",
- "console_error_panic_hook",
  "js-sys",
  "leptos",
  "leptos_meta",
  "leptos_router",
- "miniz_oxide",
  "pollster",
  "serde",
  "serde_json",
  "shared",
  "spodeian-cache",
  "spodeian-export",
+ "spodeian-telemetry",
  "spodeian-tokens",
  "spodeian-web-utils",
  "thiserror 2.0.20",
  "tracing",
  "wasm-bindgen",
- "wasm-bindgen-futures",
  "web-sys",
 ]
 
@@ -4270,10 +4267,7 @@ dependencies = [
 name = "shared"
 version = "0.1.0"
 dependencies = [
- "base64 0.22.1",
- "bson",
  "criterion",
- "miniz_oxide",
  "serde",
  "serde_json",
  "spodeian-export",
@@ -5706,7 +5700,6 @@ name = "web"
 version = "0.1.0"
 dependencies = [
  "app",
- "console_error_panic_hook",
  "js-sys",
  "leptos",
  "serde_json",

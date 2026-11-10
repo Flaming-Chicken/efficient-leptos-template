@@ -62,7 +62,7 @@ $theme-tokens: (
     "border-subtle": #21262d,
     "text-primary": #f0f6fc,
     "text-secondary": #8b949e,
-    "text-muted": #6e7681,
+    "text-muted": #848d97,
     "accent-primary": #388bfd,
     "accent-hover": #58a6ff,
     "accent-bg": rgba(56, 139, 253, 0.15),
@@ -87,7 +87,7 @@ $theme-tokens: (
     "border-subtle": #e6e0d6,
     "text-primary": #1f2328,
     "text-secondary": #59636e,
-    "text-muted": #8c959f,
+    "text-muted": #656d76,
     "accent-primary": #0969da,
     "accent-hover": #1f883d,
     "accent-bg": rgba(9, 105, 218, 0.1),
@@ -381,6 +381,62 @@ a.nav-btn {
     font-weight: 700;
     color: var(--accent-primary);
     border-color: var(--accent-primary);
+}
+
+.telemetry-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 12px;
+    margin: 16px 0;
+}
+
+.kpi-card {
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+}
+
+.kpi-label,
+.kpi-note {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.kpi-value {
+    font-size: 1.125rem;
+    font-weight: 700;
+}
+
+.telemetry-heading {
+    margin: 16px 0 8px;
+    font-size: 0.95rem;
+}
+
+.telemetry-log {
+    max-height: 40vh;
+    overflow: auto;
+}
+
+.telemetry-log table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+}
+
+.telemetry-log th,
+.telemetry-log td {
+    padding: 6px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-subtle);
+    vertical-align: top;
+}
+
+.telemetry-footer {
+    margin-top: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
 }
 
 .save-error {
@@ -782,6 +838,10 @@ a.nav-btn {
     font-weight: 600;
     text-transform: uppercase;
 }
+
+/* Status badges keep primary text for contrast; the border carries the status colour. */
+.badge-success { border: 1px solid var(--success); color: var(--text-primary); }
+.badge-danger { border: 1px solid var(--danger); color: var(--text-primary); }
 
 .priority-low { background: var(--bg-subtle); color: var(--text-secondary); }
 .priority-medium { background: var(--accent-bg); color: var(--accent-primary); }

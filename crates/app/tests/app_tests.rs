@@ -244,3 +244,76 @@ fn test_saving_before_storage_is_ready_is_reported() {
         Err(StorageError::NotReady)
     ));
 }
+
+/// Reads the `$theme-tokens` map out of the stylesheet: theme name -> token -> hex colour.
+fn stylesheet_palettes() -> Vec<(
+    String,
+    std::collections::HashMap<String, spodeian_tokens::ColorRgba>,
+)> {
+    let scss = include_str!("../../web/style.scss");
+    let start = scss.find("$theme-tokens: (").expect("theme map");
+    let end = scss[start..]
+        .find("@each $theme-name")
+        .expect("end of theme map")
+        + start;
+    let mut themes = Vec::new();
+    for line in scss[start..end].lines().map(str::trim) {
+        let Some((name, value)) = line.split_once(": ") else {
+            continue;
+        };
+        let name = name.trim_matches('"').to_string();
+        let value = value.trim_end_matches(',');
+        if name.starts_with('$') {
+            continue;
+        }
+        if value == "(" {
+            themes.push((name, std::collections::HashMap::new()));
+        } else if let Some(hex) = value.strip_prefix('#')
+            && hex.len() == 6
+            && let Ok(rgb) = u32::from_str_radix(hex, 16)
+            && let Some((_, tokens)) = themes.last_mut()
+        {
+            let color =
+                spodeian_tokens::ColorRgba::rgb((rgb >> 16) as u8, (rgb >> 8) as u8, rgb as u8);
+            tokens.insert(name, color);
+        }
+    }
+    themes
+}
+
+#[test]
+fn test_stylesheet_defines_every_theme_mode() {
+    let names: Vec<String> = stylesheet_palettes()
+        .into_iter()
+        .map(|(name, _)| name)
+        .collect();
+    for mode in [
+        ThemeMode::Dark,
+        ThemeMode::Light,
+        ThemeMode::HighContrastDark,
+        ThemeMode::HighContrastLight,
+    ] {
+        assert!(
+            names.iter().any(|n| n == mode.as_str()),
+            "style.scss has no palette for theme `{}`",
+            mode.as_str()
+        );
+    }
+}
+
+#[test]
+fn test_stylesheet_text_colours_meet_wcag_aa() {
+    use spodeian_tokens::ColorRgba;
+
+    for (theme, tokens) in stylesheet_palettes() {
+        for text in ["text-primary", "text-secondary", "text-muted"] {
+            for background in ["bg-primary", "bg-surface", "bg-surface-elevated"] {
+                let ratio = ColorRgba::contrast_ratio(tokens[text], tokens[background]);
+                assert!(
+                    ratio >= 4.5,
+                    "{theme}: {text} on {background} is {ratio:.2}:1, below WCAG AA 4.5:1"
+                );
+            }
+        }
+    }
+}
