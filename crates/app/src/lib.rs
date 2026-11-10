@@ -20,8 +20,7 @@ use crate::components::{
     TelemetryModal,
 };
 use crate::storage::{
-    load_state_from_storage, query_storage_diagnostics, request_persistent_storage,
-    trigger_binary_download,
+    query_storage_diagnostics, request_persistent_storage, trigger_binary_download,
 };
 use leptos::prelude::*;
 use leptos_meta::{Meta, Title, provide_meta_context};
@@ -65,6 +64,7 @@ pub fn App() -> impl IntoView {
     let state = RwSignal::new(AppState::new());
     let (ready, set_ready) = signal(false);
     provide_context(client::ClientReady(ready));
+    let storage_status = RwSignal::new(crate::storage::StorageStatus::default());
 
     // Effects never run during server rendering; in the browser this runs once after the
     // first render.
@@ -73,11 +73,15 @@ pub fn App() -> impl IntoView {
         apply_document_theme(theme.get_untracked());
         dyslexia.set(get_initial_dyslexia());
         apply_document_dyslexia(dyslexia.get_untracked());
-        match load_state_from_storage() {
-            Some(saved) => state.set(saved),
-            None => info!("No saved state; keeping the sample data"),
-        }
-        set_ready.set(true);
+        // Storage is asynchronous (IndexedDB). Saving is only possible once this load
+        // has finished, so the sample data can never overwrite saved data.
+        leptos::task::spawn_local(async move {
+            match crate::storage::init(storage_status).await {
+                Some(saved) => state.set(saved),
+                None => info!("No saved state; keeping the sample data"),
+            }
+            set_ready.set(true);
+        });
     });
 
     // Modal state signals
@@ -101,11 +105,7 @@ pub fn App() -> impl IntoView {
         if !ready.get() {
             return crate::storage::StorageDiagnostics::default();
         }
-        let mut d = query_storage_diagnostics();
-        let count = state.get().collection.total_count();
-        d.memory_items_count = count;
-        d.fallback_tier_active = count > crate::storage::MEMORY_WORKING_SET_LIMIT || d.idb_active;
-        d
+        query_storage_diagnostics()
     });
 
     // Global keyboard listener for Escape key to close modals
@@ -155,6 +155,20 @@ pub fn App() -> impl IntoView {
                 />
 
                 <main id="main-content" class="main-wrapper" tabindex="-1">
+                    // A failed save or load is always shown: never imply data is safe when
+                    // the browser refused the write.
+                    {move || {
+                        diag.get()
+                            .last_error
+                            .map(|message| {
+                                view! {
+                                    <div class="save-error" role="alert">
+                                        <strong>"Not saved. "</strong>
+                                        {message}
+                                    </div>
+                                }
+                            })
+                    }}
                     // Diagnostics / Warning Banners
                     {move || {
                         let d = diag.get();

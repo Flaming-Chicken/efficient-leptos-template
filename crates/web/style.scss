@@ -383,6 +383,15 @@ a.nav-btn {
     border-color: var(--accent-primary);
 }
 
+.save-error {
+    margin: 0 0 1rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--danger);
+    border-radius: var(--radius-sm);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+}
+
 .not-found {
     max-width: 40rem;
     margin: 4rem auto;

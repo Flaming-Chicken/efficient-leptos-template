@@ -1,5 +1,4 @@
-// Service worker registration, the PWA install prompt bridge, and the StorageManager
-// persistence bridge. Loaded as a file (not inline) so the Content Security Policy
+// Service worker registration and the PWA install prompt bridge. Loaded as a file (not inline) so the Content Security Policy
 // does not need 'unsafe-inline' for scripts.
 if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
     window.addEventListener('load', () => {
@@ -32,9 +31,6 @@ window.addEventListener('appinstalled', () => {
     window.__pwaInstalled = true;
     window.dispatchEvent(new CustomEvent('pwa-installed'));
     console.log('PWA successfully installed by user');
-    if (window.__requestPersistentStorage) {
-        window.__requestPersistentStorage();
-    }
 });
 
 window.__triggerPWAInstall = async function () {
@@ -57,42 +53,3 @@ window.__triggerPWAInstall = async function () {
         return false;
     }
 };
-
-// StorageManager Persistence API Bridge
-window.__storagePersisted = false;
-
-window.__checkStoragePersisted = async function () {
-    if (navigator.storage && navigator.storage.persisted) {
-        try {
-            const persisted = await navigator.storage.persisted();
-            window.__storagePersisted = persisted;
-            return persisted;
-        } catch (e) {
-            console.warn('Failed to check storage persistence:', e);
-            return false;
-        }
-    }
-    return false;
-};
-
-window.__requestPersistentStorage = async function () {
-    if (navigator.storage && navigator.storage.persist) {
-        try {
-            const granted = await navigator.storage.persist();
-            window.__storagePersisted = granted;
-            window.dispatchEvent(new CustomEvent('storage-persistence-changed', { detail: { granted } }));
-            console.log(`Persistent storage requested. Granted: ${granted}`);
-            return granted;
-        } catch (e) {
-            console.error('Error requesting persistent storage:', e);
-            return false;
-        }
-    }
-    return false;
-};
-
-window.addEventListener('load', () => {
-    if (window.__checkStoragePersisted) {
-        window.__checkStoragePersisted();
-    }
-});

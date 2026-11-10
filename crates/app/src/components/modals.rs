@@ -760,11 +760,7 @@ pub fn StorageModal(
         if !crate::client::client_ready() {
             return crate::storage::StorageDiagnostics::default();
         }
-        let mut d = query_storage_diagnostics();
-        let count = state.get().collection.total_count();
-        d.memory_items_count = count;
-        d.fallback_tier_active = count > crate::storage::MEMORY_WORKING_SET_LIMIT || d.idb_active;
-        d
+        query_storage_diagnostics()
     });
 
     let close_modal = move |_| {

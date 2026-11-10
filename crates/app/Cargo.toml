@@ -38,3 +38,6 @@ ssr = ["leptos/ssr", "leptos_router/ssr", "leptos_meta/ssr"]
 hydrate = ["leptos/hydrate"]
 csr = ["leptos/csr"]
 
+
+[dev-dependencies]
+pollster = { workspace = true }

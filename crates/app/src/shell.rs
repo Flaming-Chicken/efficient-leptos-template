@@ -34,7 +34,6 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
                 <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
                 <link rel="alternate icon" href="/favicon.ico" />
                 <script src="/pwa.js" defer></script>
-                <script src="/storage-bridge.js" defer></script>
                 <HashedStylesheet options=options.clone() id="leptos" />
                 <HydrationScripts options />
                 <MetaTags />
