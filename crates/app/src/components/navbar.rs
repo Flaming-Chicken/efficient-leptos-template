@@ -46,7 +46,13 @@ pub fn Navbar(
         mobile_menu_open.set(false);
     };
 
-    let diag = Memo::new(move |_| query_storage_diagnostics());
+    let diag = Memo::new(move |_| {
+        if crate::client::client_ready() {
+            query_storage_diagnostics()
+        } else {
+            crate::storage::StorageDiagnostics::default()
+        }
+    });
 
     view! {
         <header class="app-header">

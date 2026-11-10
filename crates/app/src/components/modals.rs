@@ -757,6 +757,9 @@ pub fn StorageModal(
     state: RwSignal<AppState>,
 ) -> impl IntoView {
     let diag = Memo::new(move |_| {
+        if !crate::client::client_ready() {
+            return crate::storage::StorageDiagnostics::default();
+        }
         let mut d = query_storage_diagnostics();
         let count = state.get().collection.total_count();
         d.memory_items_count = count;

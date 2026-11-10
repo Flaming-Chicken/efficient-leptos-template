@@ -3,8 +3,14 @@
 #![allow(clippy::unit_arg)]
 #![allow(clippy::unused_unit)]
 
+pub mod client;
 pub mod components;
+#[cfg(feature = "ssr")]
+pub mod shell;
 pub mod storage;
+
+#[cfg(feature = "ssr")]
+pub use shell::shell;
 
 use crate::components::theme::{
     apply_document_dyslexia, apply_document_theme, get_initial_dyslexia, get_initial_theme,
@@ -20,8 +26,9 @@ use crate::storage::{
 use leptos::prelude::*;
 use leptos_meta::{Meta, Title, provide_meta_context};
 use leptos_router::components::{A, Route, Router, Routes};
-use leptos_router::path;
-use shared::{AppPage, AppState, export_to_compressed_bson};
+use leptos_router::static_routes::StaticRoute;
+use leptos_router::{SsrMode, path};
+use shared::{AppPage, AppState, ThemeMode, export_to_compressed_bson};
 use tracing::info;
 
 /// Sets the document title and description for one page.
@@ -50,19 +57,28 @@ fn NotFound() -> impl IntoView {
 pub fn App() -> impl IntoView {
     provide_meta_context();
 
-    // Initialize Theme & Typography
-    let theme = RwSignal::new(get_initial_theme());
-    apply_document_theme(theme.get());
+    // Every build renders the same defaults first, so pre-rendered HTML and the browser's
+    // first (hydrating) render match. Saved settings and data load right after, in the
+    // browser only.
+    let theme = RwSignal::new(ThemeMode::default());
+    let dyslexia = RwSignal::new(false);
+    let state = RwSignal::new(AppState::new());
+    let (ready, set_ready) = signal(false);
+    provide_context(client::ClientReady(ready));
 
-    let dyslexia = RwSignal::new(get_initial_dyslexia());
-    apply_document_dyslexia(dyslexia.get());
-
-    // Initialize State from local storage or sample data
-    let initial_state = load_state_from_storage().unwrap_or_else(|| {
-        info!("Initializing new default AppState");
-        AppState::new()
+    // Effects never run during server rendering; in the browser this runs once after the
+    // first render.
+    Effect::new(move |_| {
+        theme.set(get_initial_theme());
+        apply_document_theme(theme.get_untracked());
+        dyslexia.set(get_initial_dyslexia());
+        apply_document_dyslexia(dyslexia.get_untracked());
+        match load_state_from_storage() {
+            Some(saved) => state.set(saved),
+            None => info!("No saved state; keeping the sample data"),
+        }
+        set_ready.set(true);
     });
-    let state = RwSignal::new(initial_state);
 
     // Modal state signals
     let show_reset_modal = RwSignal::new(false);
@@ -82,6 +98,9 @@ pub fn App() -> impl IntoView {
     let announcement = RwSignal::new(String::new());
 
     let diag = Memo::new(move |_| {
+        if !ready.get() {
+            return crate::storage::StorageDiagnostics::default();
+        }
         let mut d = query_storage_diagnostics();
         let count = state.get().collection.total_count();
         d.memory_items_count = count;
@@ -237,6 +256,7 @@ pub fn App() -> impl IntoView {
                     <Routes fallback=NotFound>
                         <Route
                             path=path!("/")
+                            ssr=SsrMode::Static(StaticRoute::new())
                             view=move || {
                                 view! {
                                     <PageMeta page=AppPage::Dashboard />
@@ -246,12 +266,19 @@ pub fn App() -> impl IntoView {
                         />
                         <Route
                             path=path!("/about")
+                            ssr=SsrMode::Static(StaticRoute::new())
                             view=move || {
                                 view! {
                                     <PageMeta page=AppPage::About />
                                     <AboutPage state=state diag=diag />
                                 }
                             }
+                        />
+                        // Pre-rendered as 404.html, which static hosts serve for unknown paths.
+                        <Route
+                            path=path!("/404")
+                            ssr=SsrMode::Static(StaticRoute::new())
+                            view=NotFound
                         />
                     </Routes>
                 </main>

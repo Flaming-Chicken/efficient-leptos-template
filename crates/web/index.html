@@ -1,12 +1,16 @@
 <!DOCTYPE html>
+<!-- Desktop (Tauri) entry page, built by Trunk with client-side rendering. The web
+     release is pre-rendered by the `ssg` binary instead; its page shell lives in
+     crates/app/src/shell.rs. Keep the two in step. -->
 <html lang="en" data-theme="dark">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0d1117" />
     <meta name="description" content="Modern, high-performance Serverless WebAssembly & Native Desktop application built with Rust and Leptos 0.8" />
 
-    <!-- Theme initialization (prevents FOUC) -->
+    <!-- Theme initialization (prevents a flash of the wrong theme). Inline on purpose:
+         it must run before first paint. Allowed by hash in the CSP. -->
     <script>
         (function () {
             try {
@@ -20,203 +24,34 @@
         })();
     </script>
 
-    <!-- Open Graph & Social Cards -->
-    <meta property="og:title" content="Leptos Serverless & Desktop Template" />
-    <meta property="og:description" content="Production-ready, modular Rust & Leptos template for Serverless Pages and Native Desktop." />
-    <meta property="og:type" content="website" />
-
-    <!-- PWA & Mobile Capabilities -->
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Leptos App" />
-    <link rel="manifest" href="manifest.json" />
-
-    <!-- Favicon & Icons -->
-    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-    <link rel="alternate icon" href="favicon.ico" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="alternate icon" href="/favicon.ico" />
 
     <title>Leptos Serverless & Desktop Template</title>
 
-    <!-- Trunk Asset Directives (data-integrity="none" prevents post-build minification hash mismatches) -->
+    <!-- wasm-opt must accept every WebAssembly feature enabled in .cargo/config.toml. -->
     <link
         data-trunk
         rel="rust"
         href="Cargo.toml"
         data-type="main"
         data-cargo-features="csr"
+        data-cargo-no-default-features
         data-wasm-opt="z"
-        data-wasm-opt-params="--enable-simd --enable-bulk-memory --enable-mutable-globals --enable-nontrapping-float-to-int --enable-sign-ext --converge --directize --duplicate-function-elimination --coalesce-locals --vacuum --strip-debug --strip-producers"
-        data-integrity="none"
+        data-wasm-opt-params="--enable-simd --enable-bulk-memory --enable-mutable-globals --enable-nontrapping-float-to-int --enable-sign-ext --enable-reference-types --enable-multivalue --strip-debug --strip-producers"
     />
-    <link data-trunk rel="scss" href="style.scss" data-integrity="none" />
-    <link data-trunk rel="copy-file" href="sw.js" data-integrity="none" />
-    <link data-trunk rel="copy-file" href="manifest.json" data-integrity="none" />
-    <link data-trunk rel="copy-file" href="favicon.svg" data-integrity="none" />
-    <link data-trunk rel="copy-file" href="favicon.ico" data-integrity="none" />
-    <link data-trunk rel="copy-file" href="icon-192.png" data-integrity="none" />
-    <link data-trunk rel="copy-file" href="icon-512.png" data-integrity="none" />
-    <link data-trunk rel="copy-file" href="_headers" data-integrity="none" />
+    <link data-trunk rel="scss" href="style.scss" />
+    <link data-trunk rel="copy-dir" href="public" data-target-path="." />
+    <script src="/pwa.js" defer></script>
+    <script src="/storage-bridge.js" defer></script>
 </head>
 <body>
     <noscript>
-        <div style="padding: 2rem; text-align: center; color: #f0f6fc; background: #0d1117; font-family: sans-serif;">
+        <div style="padding: 2rem; text-align: center;">
             <h2>JavaScript Required</h2>
-            <p>Please enable JavaScript to run this high-performance Rust WebAssembly application.</p>
+            <p>The desktop app needs JavaScript and WebAssembly enabled.</p>
         </div>
     </noscript>
-
-    <!-- PWA Service Worker & Storage Architecture -->
-    <script>
-        if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js', { scope: '/' })
-                    .then(reg => {
-                        console.log('[PWA] Service Worker registered successfully:', reg.scope);
-                    })
-                    .catch(err => {
-                        console.warn('[PWA] Service Worker registration failed:', err);
-                    });
-            });
-        }
-
-        // PWA Install Prompt Engine
-        window.__pwaInstallPrompt = null;
-        window.__pwaInstallAvailable = false;
-        window.__pwaInstalled = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            window.__pwaInstallPrompt = e;
-            window.__pwaInstallAvailable = true;
-            window.dispatchEvent(new CustomEvent('pwa-install-available'));
-            console.log('PWA installation prompt captured and ready');
-        });
-
-        window.addEventListener('appinstalled', () => {
-            window.__pwaInstallPrompt = null;
-            window.__pwaInstallAvailable = false;
-            window.__pwaInstalled = true;
-            window.dispatchEvent(new CustomEvent('pwa-installed'));
-            console.log('PWA successfully installed by user');
-            if (window.__requestPersistentStorage) {
-                window.__requestPersistentStorage();
-            }
-        });
-
-        window.__triggerPWAInstall = async function () {
-            if (!window.__pwaInstallPrompt) {
-                console.warn('PWA install prompt is not available at this time');
-                return false;
-            }
-            try {
-                window.__pwaInstallPrompt.prompt();
-                const { outcome } = await window.__pwaInstallPrompt.userChoice;
-                console.log(`User response to PWA install prompt: ${outcome}`);
-                if (outcome === 'accepted') {
-                    window.__pwaInstallPrompt = null;
-                    window.__pwaInstallAvailable = false;
-                    return true;
-                }
-                return false;
-            } catch (err) {
-                console.error('Error triggering PWA install:', err);
-                return false;
-            }
-        };
-
-        // StorageManager Persistence API Bridge
-        window.__storagePersisted = false;
-
-        window.__checkStoragePersisted = async function () {
-            if (navigator.storage && navigator.storage.persisted) {
-                try {
-                    const persisted = await navigator.storage.persisted();
-                    window.__storagePersisted = persisted;
-                    return persisted;
-                } catch (e) {
-                    console.warn('Failed to check storage persistence:', e);
-                    return false;
-                }
-            }
-            return false;
-        };
-
-        window.__requestPersistentStorage = async function () {
-            if (navigator.storage && navigator.storage.persist) {
-                try {
-                    const granted = await navigator.storage.persist();
-                    window.__storagePersisted = granted;
-                    window.dispatchEvent(new CustomEvent('storage-persistence-changed', { detail: { granted } }));
-                    console.log(`Persistent storage requested. Granted: ${granted}`);
-                    return granted;
-                } catch (e) {
-                    console.error('Error requesting persistent storage:', e);
-                    return false;
-                }
-            }
-            return false;
-        };
-
-        window.addEventListener('load', () => {
-            if (window.__checkStoragePersisted) {
-                window.__checkStoragePersisted();
-            }
-        });
-
-        // IndexedDB Multi-Tier Fallback Storage Engine
-        const IDB_DB_NAME = 'leptos_template_offline_store';
-        const IDB_STORE_NAME = 'leptos_template_kv';
-        const IDB_VERSION = 1;
-
-        function openIdbDatabase() {
-            return new Promise((resolve, reject) => {
-                if (!window.indexedDB) {
-                    reject(new Error('IndexedDB is not supported in this environment'));
-                    return;
-                }
-                const request = window.indexedDB.open(IDB_DB_NAME, IDB_VERSION);
-                request.onupgradeneeded = (e) => {
-                    const db = e.target.result;
-                    if (!db.objectStoreNames.contains(IDB_STORE_NAME)) {
-                        db.createObjectStore(IDB_STORE_NAME);
-                    }
-                };
-                request.onsuccess = (e) => resolve(e.target.result);
-                request.onerror = (e) => reject(e.target.error);
-            });
-        }
-
-        window.__saveToIndexedDB = async function (key, value) {
-            try {
-                const db = await openIdbDatabase();
-                return new Promise((resolve, reject) => {
-                    const tx = db.transaction(IDB_STORE_NAME, 'readwrite');
-                    const store = tx.objectStore(IDB_STORE_NAME);
-                    const req = store.put(value, key);
-                    req.onsuccess = () => resolve(true);
-                    req.onerror = (e) => reject(e.target.error);
-                });
-            } catch (err) {
-                console.error('IndexedDB save error for key:', key, err);
-                return false;
-            }
-        };
-
-        window.__loadFromIndexedDB = async function (key) {
-            try {
-                const db = await openIdbDatabase();
-                return new Promise((resolve, reject) => {
-                    const tx = db.transaction(IDB_STORE_NAME, 'readonly');
-                    const store = tx.objectStore(IDB_STORE_NAME);
-                    const req = store.get(key);
-                    req.onsuccess = (e) => resolve(e.target.result || null);
-                    req.onerror = (e) => reject(e.target.error);
-                });
-            } catch (err) {
-                console.error('IndexedDB load error for key:', key, err);
-                return null;
-            }
-        };
-    </script>
 </body>
 </html>

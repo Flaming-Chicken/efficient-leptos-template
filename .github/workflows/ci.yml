@@ -140,7 +140,7 @@ jobs:
       # Lint each rendering mode separately: enabling ssr, hydrate and csr together
       # (--all-features) is not a build anyone ships, and hides browser-only code.
       - name: Clippy (server rendering, native)
-        run: cargo clippy -p shared -p app --all-targets --features app/ssr -- -D warnings
+        run: cargo clippy -p shared -p app -p ssg --all-targets --features app/ssr -- -D warnings
       - name: Clippy (hydration, wasm32)
         run: cargo clippy -p app -p web --target wasm32-unknown-unknown --features app/hydrate,web/hydrate -- -D warnings
       - name: Clippy (client-side rendering, wasm32)
@@ -208,6 +208,32 @@ jobs:
             export GECKODRIVER="$GECKOWEBDRIVER/geckodriver"
           fi
           cargo test -p web --features csr --tests --target wasm32-unknown-unknown
+
+  build-web:
+    name: Build Pre-rendered Web Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: Cache Build Tools
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/cargo-leptos
+            ~/.cargo/bin/wasm-bindgen
+            ~/.cache/cargo-leptos
+          key: ${{ runner.os }}-web-tools-${{ hashFiles('scripts/build-web.sh', 'Cargo.lock') }}
+      - name: Build
+        run: bash scripts/build-web.sh
+      - name: Check the pages contain their content without JavaScript
+        run: |
+          grep -q "Total Items" target/site/index.html
+          grep -q "<title>About |" target/site/about.html
+          grep -q "Page not found" target/site/404.html
+          ! grep -q 'nonce=' target/site/index.html
 
   mobile-build-check:
     name: Mobile Build Check (Android & iOS)

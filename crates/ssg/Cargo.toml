@@ -1,0 +1,20 @@
+[package]
+name = "ssg"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Pre-renders every route of the web release to static HTML"
+publish = false
+
+[dependencies]
+app = { workspace = true, features = ["ssr"] }
+leptos = { workspace = true, features = ["ssr"] }
+leptos_axum = { workspace = true }
+tokio = { workspace = true }
+
+# cargo-leptos builds the bin package with `--features ssr`; rendering is always
+# server-side here, so the feature only needs to exist.
+[features]
+ssr = []
