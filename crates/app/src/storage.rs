@@ -7,9 +7,9 @@ use spodeian_cache::ContentAddressedStorage;
 use spodeian_cache::PreferentialRouter;
 #[allow(unused_imports)]
 use spodeian_cache::StorageTier;
+use thiserror::Error;
 #[allow(unused_imports)]
 use tracing::{error, info, warn};
-use thiserror::Error;
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::JsCast;
@@ -109,10 +109,9 @@ pub fn query_storage_diagnostics() -> StorageDiagnostics {
             if let Ok(val) = js_sys::Reflect::get(
                 &window,
                 &wasm_bindgen::JsValue::from_str("__storagePersisted"),
-            ) {
-                if let Some(b) = val.as_bool() {
-                    diag.is_persisted = Some(b);
-                }
+            ) && let Some(b) = val.as_bool()
+            {
+                diag.is_persisted = Some(b);
             }
         }
     }
@@ -124,16 +123,15 @@ pub fn query_storage_diagnostics() -> StorageDiagnostics {
 pub fn request_persistent_storage() {
     #[cfg(target_arch = "wasm32")]
     {
-        if let Some(window) = web_sys::window() {
-            if let Ok(func) = js_sys::Reflect::get(
+        if let Some(window) = web_sys::window()
+            && let Ok(func) = js_sys::Reflect::get(
                 &window,
                 &wasm_bindgen::JsValue::from_str("__requestPersistentStorage"),
-            ) {
-                if let Some(func) = func.dyn_ref::<js_sys::Function>() {
-                    let _ = func.call0(&window);
-                    info!("Triggered __requestPersistentStorage from Leptos");
-                }
-            }
+            )
+            && let Some(func) = func.dyn_ref::<js_sys::Function>()
+        {
+            let _ = func.call0(&window);
+            info!("Triggered __requestPersistentStorage from Leptos");
         }
     }
 }
@@ -142,16 +140,15 @@ pub fn request_persistent_storage() {
 pub fn trigger_pwa_install() {
     #[cfg(target_arch = "wasm32")]
     {
-        if let Some(window) = web_sys::window() {
-            if let Ok(func) = js_sys::Reflect::get(
+        if let Some(window) = web_sys::window()
+            && let Ok(func) = js_sys::Reflect::get(
                 &window,
                 &wasm_bindgen::JsValue::from_str("__triggerPWAInstall"),
-            ) {
-                if let Some(func) = func.dyn_ref::<js_sys::Function>() {
-                    let _ = func.call0(&window);
-                    info!("Triggered __triggerPWAInstall from Leptos");
-                }
-            }
+            )
+            && let Some(func) = func.dyn_ref::<js_sys::Function>()
+        {
+            let _ = func.call0(&window);
+            info!("Triggered __triggerPWAInstall from Leptos");
         }
     }
 }
@@ -160,18 +157,17 @@ pub fn trigger_pwa_install() {
 pub fn load_state_from_storage() -> Option<AppState> {
     #[cfg(target_arch = "wasm32")]
     {
-        if let Some(window) = web_sys::window() {
-            if let Ok(Some(storage)) = window.local_storage() {
-                if let Ok(Some(json_str)) = storage.get_item(STORAGE_KEY_STATE) {
-                    match shared::import_from_json(&json_str) {
-                        Ok(state) => {
-                            info!("Successfully loaded app state from local storage");
-                            return Some(state);
-                        }
-                        Err(err) => {
-                            error!("Failed to parse state from local storage: {}", err);
-                        }
-                    }
+        if let Some(window) = web_sys::window()
+            && let Ok(Some(storage)) = window.local_storage()
+            && let Ok(Some(json_str)) = storage.get_item(STORAGE_KEY_STATE)
+        {
+            match shared::import_from_json(&json_str) {
+                Ok(state) => {
+                    info!("Successfully loaded app state from local storage");
+                    return Some(state);
+                }
+                Err(err) => {
+                    error!("Failed to parse state from local storage: {}", err);
                 }
             }
         }
@@ -196,32 +192,30 @@ pub fn save_state_to_storage(state: &AppState) -> Result<StorageBackend, Storage
     {
         if let Some(window) = web_sys::window() {
             // Tier 1 (Large/Binary): Cache API
-            if recommended_tier == StorageTier::CacheApi {
-                if let Ok(func) = js_sys::Reflect::get(
+            if recommended_tier == StorageTier::CacheApi
+                && let Ok(func) = js_sys::Reflect::get(
                     &window,
                     &wasm_bindgen::JsValue::from_str("__saveToCacheApi"),
-                ) {
-                    if let Some(func) = func.dyn_ref::<js_sys::Function>() {
-                        let k = wasm_bindgen::JsValue::from_str(STORAGE_KEY_STATE);
-                        let v = wasm_bindgen::JsValue::from_str(&json_str);
-                        let _ = func.call2(&window, &k, &v);
-                        info!(
-                            "Preferentially stored large asset to Cache API [{}]",
-                            STORAGE_KEY_STATE
-                        );
-                        return Ok(StorageBackend::CacheApi);
-                    }
-                }
+                )
+                && let Some(func) = func.dyn_ref::<js_sys::Function>()
+            {
+                let k = wasm_bindgen::JsValue::from_str(STORAGE_KEY_STATE);
+                let v = wasm_bindgen::JsValue::from_str(&json_str);
+                let _ = func.call2(&window, &k, &v);
+                info!(
+                    "Preferentially stored large asset to Cache API [{}]",
+                    STORAGE_KEY_STATE
+                );
+                return Ok(StorageBackend::CacheApi);
             }
 
             // Tier 2: Try localStorage for fast synchronous session data if small (< 16 KB)
             let mut local_storage_saved = false;
-            if size < 16 * 1024 {
-                if let Ok(Some(storage)) = window.local_storage() {
-                    if storage.set_item(STORAGE_KEY_STATE, &json_str).is_ok() {
-                        local_storage_saved = true;
-                    }
-                }
+            if size < 16 * 1024
+                && let Ok(Some(storage)) = window.local_storage()
+                && storage.set_item(STORAGE_KEY_STATE, &json_str).is_ok()
+            {
+                local_storage_saved = true;
             }
 
             // Tier 3: Always synchronize to IndexedDB as the durable structured fallback tier
@@ -229,18 +223,17 @@ pub fn save_state_to_storage(state: &AppState) -> Result<StorageBackend, Storage
             if let Ok(func) = js_sys::Reflect::get(
                 &window,
                 &wasm_bindgen::JsValue::from_str("__saveToIndexedDB"),
-            ) {
-                if let Some(func) = func.dyn_ref::<js_sys::Function>() {
-                    let k = wasm_bindgen::JsValue::from_str(STORAGE_KEY_STATE);
-                    let v = wasm_bindgen::JsValue::from_str(&json_str);
-                    let _ = func.call2(&window, &k, &v);
-                    info!(
-                        "Synchronized structured state to IndexedDB fallback tier [{}]",
-                        STORAGE_KEY_STATE
-                    );
-                    if !local_storage_saved {
-                        return Ok(StorageBackend::IndexedDb);
-                    }
+            ) && let Some(func) = func.dyn_ref::<js_sys::Function>()
+            {
+                let k = wasm_bindgen::JsValue::from_str(STORAGE_KEY_STATE);
+                let v = wasm_bindgen::JsValue::from_str(&json_str);
+                let _ = func.call2(&window, &k, &v);
+                info!(
+                    "Synchronized structured state to IndexedDB fallback tier [{}]",
+                    STORAGE_KEY_STATE
+                );
+                if !local_storage_saved {
+                    return Ok(StorageBackend::IndexedDb);
                 }
             }
 

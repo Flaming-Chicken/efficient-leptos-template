@@ -31,9 +31,10 @@ wasm-bindgen-futures = { workspace = true }
 js-sys = { workspace = true }
 console_error_panic_hook = { workspace = true }
 
+# Exactly one rendering mode per build; there is deliberately no default.
+# ssr: server/static rendering (ssg binary) · hydrate: web release · csr: desktop (Trunk)
 [features]
-default = ["hydrate"]
-hydrate = ["leptos/hydrate"]
 ssr = ["leptos/ssr", "leptos_router/ssr", "leptos_meta/ssr"]
+hydrate = ["leptos/hydrate"]
 csr = ["leptos/csr"]
 

@@ -24,21 +24,21 @@ pub fn handle_modal_tab_trap(
             if let Some(doc) = web_sys::window().and_then(|w| w.document()) {
                 let active = doc.active_element();
                 if ev.shift_key() {
-                    if let (Some(active), Some(first)) = (active.as_ref(), first_el) {
-                        if first.is_same_node(Some(active.as_ref())) {
-                            ev.prevent_default();
-                            if let Some(last) = last_el {
-                                let _ = last.focus();
-                            }
+                    if let (Some(active), Some(first)) = (active.as_ref(), first_el)
+                        && first.is_same_node(Some(active.as_ref()))
+                    {
+                        ev.prevent_default();
+                        if let Some(last) = last_el {
+                            let _ = last.focus();
                         }
                     }
                 } else {
-                    if let (Some(active), Some(last)) = (active.as_ref(), last_el) {
-                        if last.is_same_node(Some(active.as_ref())) {
-                            ev.prevent_default();
-                            if let Some(first) = first_el {
-                                let _ = first.focus();
-                            }
+                    if let (Some(active), Some(last)) = (active.as_ref(), last_el)
+                        && last.is_same_node(Some(active.as_ref()))
+                    {
+                        ev.prevent_default();
+                        if let Some(first) = first_el {
+                            let _ = first.focus();
                         }
                     }
                 }

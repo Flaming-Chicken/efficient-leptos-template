@@ -127,6 +127,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
       - name: Check Formatting (Rustfmt)
         run: cargo fmt --all -- --check
@@ -136,8 +137,14 @@ jobs:
           tool: leptosfmt
       - name: Check Leptos Formatting (Leptosfmt)
         run: leptosfmt --check crates
-      - name: Clippy Linter
-        run: cargo clippy --workspace --exclude desktop --all-targets --all-features -- -D warnings
+      # Lint each rendering mode separately: enabling ssr, hydrate and csr together
+      # (--all-features) is not a build anyone ships, and hides browser-only code.
+      - name: Clippy (server rendering, native)
+        run: cargo clippy -p shared -p app --all-targets --features app/ssr -- -D warnings
+      - name: Clippy (hydration, wasm32)
+        run: cargo clippy -p app -p web --target wasm32-unknown-unknown --features app/hydrate,web/hydrate -- -D warnings
+      - name: Clippy (client-side rendering, wasm32)
+        run: cargo clippy -p app -p web --target wasm32-unknown-unknown --features app/csr,web/csr -- -D warnings
 
   test-native:
     name: Native Tests & Coverage
@@ -152,12 +159,12 @@ jobs:
       - uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: Run Tests with Nextest
-        run: cargo nextest run --workspace --exclude desktop --profile ci
+        run: cargo nextest run --workspace --exclude desktop --features app/ssr --profile ci
 
       - name: Measure Code Coverage (Discovery & Diagnostic)
         id: coverage
         run: |
-          cargo llvm-cov nextest --workspace --exclude desktop --lcov --output-path lcov.info
+          cargo llvm-cov nextest --workspace --exclude desktop --features app/ssr --lcov --output-path lcov.info
           cargo llvm-cov report --html --output-dir target/llvm-cov/html
           echo "### 📊 Test Coverage Summary" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
@@ -172,37 +179,35 @@ jobs:
           retention-days: 14
 
   test-wasm:
-    name: WASM Browser Tests (Market-Weighted)
+    name: WASM Browser Tests (${{ matrix.browser }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chrome, firefox]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@wasm-bindgen-cli
 
-      - name: Determine Browser by Market Share (96% Chrome / 4% Firefox)
-        id: select-browser
-        shell: bash
+      - name: Install wasm-bindgen Test Runner (version from Cargo.lock)
         run: |
-          ROLL=$(( (RANDOM % 100) + 1 ))
-          echo "Market-share browser roll: $ROLL / 100"
-          if [ "$ROLL" -le 96 ]; then
-            echo "Selected: Headless Chromium / Chrome (96% tier)"
-            echo "browser=chrome" >> $GITHUB_OUTPUT
-            echo "CHROMEDRIVER=chromedriver" >> $GITHUB_ENV
-          else
-            echo "Selected: Headless Firefox (4% tier)"
-            echo "browser=firefox" >> $GITHUB_OUTPUT
-            echo "GECKODRIVER=geckodriver" >> $GITHUB_ENV
-          fi
+          WB_VERSION=$(cargo pkgid --quiet wasm-bindgen | sed 's/.*[@#]//')
+          cargo install wasm-bindgen-cli --version "$WB_VERSION" --locked
 
       - name: Run WebAssembly Browser Tests
         shell: bash
+        env:
+          WASM_BINDGEN_TEST_TIMEOUT: "60"
         run: |
-          echo "Executing WASM tests with browser: ${{ steps.select-browser.outputs.browser }}"
-          WASM_BINDGEN_TEST_TIMEOUT=60 cargo test -p web --test wasm_tests --target wasm32-unknown-unknown
+          if [ "${{ matrix.browser }}" = "chrome" ]; then
+            export CHROMEDRIVER="$CHROMEWEBDRIVER/chromedriver"
+          else
+            export GECKODRIVER="$GECKOWEBDRIVER/geckodriver"
+          fi
+          cargo test -p web --features csr --test wasm_tests --target wasm32-unknown-unknown
 
   mobile-build-check:
     name: Mobile Build Check (Android & iOS)

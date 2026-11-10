@@ -17,18 +17,16 @@ wasm-bindgen-futures = { workspace = true }
 web-sys = { workspace = true }
 js-sys = { workspace = true }
 console_error_panic_hook = { workspace = true }
-tracing-web = { workspace = true }
 
 tracing = { workspace = true }
 app = { workspace = true }
 shared = { workspace = true }
-tracing-subscriber.workspace = true
 spodeian-telemetry = { workspace = true }
 
 
 
+# hydrate: web release built by cargo-leptos · csr: desktop release built by Trunk
 [features]
-default = ["hydrate"]
 hydrate = ["app/hydrate", "leptos/hydrate"]
 csr = ["app/csr", "leptos/csr"]
 
