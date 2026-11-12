@@ -1,11 +1,12 @@
 [package]
 name = "desktop"
-version.workspace = true
+version = "0.2.0"
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Native desktop runner for the Serverless & Desktop Leptos Template powered by Tauri v2"
+publish = false
 
 [lib]
 name = "desktop_lib"

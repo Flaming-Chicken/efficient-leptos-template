@@ -10,6 +10,8 @@ members = [
 
 # Shared metadata for all workspace packages
 [workspace.package]
+# Release version of the template as a whole (README, tags). Each crate sets its own
+# version in its manifest; crates/desktop/tauri.conf.json must match the desktop crate.
 version = "0.2.0"
 authors = ["Template Contributors <https://github.com/Flaming-Chicken>"]
 edition = "2024"
@@ -65,7 +67,8 @@ shared = { path = "crates/shared" }
 app = { path = "crates/app" }
 tauri = { version = "2", features = ["config-toml"] }
 tauri-build = { version = "2", features = ["config-toml"] }
-# spodeian-core is pinned to an exact commit; the release switches this to the v1.1.0 tag.
+# spodeian-core is pinned to an exact commit. Once spodeian-core v2.0.0 is tagged, pin
+# that tag instead and require spodeian-export "2.0" (the other crates stay "1.1").
 spodeian-cache = { git = "https://github.com/Flaming-Chicken/spodeian-core", rev = "f64fb4718b03718b8fdce744f027ec1310f348ab", version = "1.1" }
 spodeian-tokens = { git = "https://github.com/Flaming-Chicken/spodeian-core", rev = "f64fb4718b03718b8fdce744f027ec1310f348ab", version = "1.1" }
 spodeian-telemetry = { git = "https://github.com/Flaming-Chicken/spodeian-core", rev = "f64fb4718b03718b8fdce744f027ec1310f348ab", version = "1.1" }
