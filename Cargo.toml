@@ -66,11 +66,11 @@ app = { path = "crates/app" }
 tauri = { version = "2", features = ["config-toml"] }
 tauri-build = { version = "2", features = ["config-toml"] }
 # spodeian-core is pinned to an exact commit; the release switches this to the v1.1.0 tag.
-spodeian-cache = { git = "https://github.com/Flaming-Chicken/spodeian-core", rev = "c54f4d2b33f70c28e1688cf6dd045897e32864cf", version = "1.1" }
-spodeian-tokens = { git = "https://github.com/Flaming-Chicken/spodeian-core", rev = "c54f4d2b33f70c28e1688cf6dd045897e32864cf", version = "1.1" }
-spodeian-telemetry = { git = "https://github.com/Flaming-Chicken/spodeian-core", rev = "c54f4d2b33f70c28e1688cf6dd045897e32864cf", version = "1.1" }
-spodeian-export = { git = "https://github.com/Flaming-Chicken/spodeian-core", rev = "c54f4d2b33f70c28e1688cf6dd045897e32864cf", version = "1.1" }
-spodeian-web-utils = { git = "https://github.com/Flaming-Chicken/spodeian-core", rev = "c54f4d2b33f70c28e1688cf6dd045897e32864cf", version = "1.1" }
+spodeian-cache = { git = "https://github.com/Flaming-Chicken/spodeian-core", rev = "f64fb4718b03718b8fdce744f027ec1310f348ab", version = "1.1" }
+spodeian-tokens = { git = "https://github.com/Flaming-Chicken/spodeian-core", rev = "f64fb4718b03718b8fdce744f027ec1310f348ab", version = "1.1" }
+spodeian-telemetry = { git = "https://github.com/Flaming-Chicken/spodeian-core", rev = "f64fb4718b03718b8fdce744f027ec1310f348ab", version = "1.1" }
+spodeian-export = { git = "https://github.com/Flaming-Chicken/spodeian-core", rev = "f64fb4718b03718b8fdce744f027ec1310f348ab", version = "1.1" }
+spodeian-web-utils = { git = "https://github.com/Flaming-Chicken/spodeian-core", rev = "f64fb4718b03718b8fdce744f027ec1310f348ab", version = "1.1" }
 criterion = "0.5"
 pollster = "0.4"
 wasm-bindgen-test = "0.3"
