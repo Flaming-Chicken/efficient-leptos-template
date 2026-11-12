@@ -8,185 +8,143 @@
 [![Tauri: v2](https://img.shields.io/badge/Tauri-v2-blue.svg)](https://v2.tauri.app)
 [![Cloudflare Pages: v3](https://img.shields.io/badge/Cloudflare%20Pages-Build%20System%20v3-F38020.svg)](https://pages.cloudflare.com)
 
-A production-ready, modular Rust & [Leptos 0.8](https://leptos.dev) template designed for high-performance **Serverless Web (WASM / Cloudflare Pages / PWA via Trunk)** and **Native Desktop (Windows, macOS, Linux via Tauri v2)** applications.
+A modular Rust & [Leptos 0.8](https://leptos.dev) template with two release targets from one codebase:
 
-Featuring a complete example application with a **responsive top bar**, **persistent multi-page routing** (Dashboard and About views), **interactive reactive data management**, and a **status footer**.
+- **Web**: pre-rendered static HTML that hydrates in the browser (SSR + hydration, no server). Pages carry their content without JavaScript, then become interactive. Deploys to any static host (Cloudflare Pages, GitHub Pages).
+- **Desktop**: a client-side-rendered (CSR) bundle built with Trunk and loaded by Tauri v2 (Windows, macOS, Linux).
+
+The example app has a top bar, routed Dashboard and About pages, interactive item management, offline support (PWA) and persistent storage built on the `spodeian-*` libraries.
 
 ---
 
 ## 🚀 Using this Template
 
 1. Click **"Use this template"** > **"Create a new repository"** on GitHub.
-2. Clone your new repository locally:
-   ```bash
-   git clone https://github.com/your-username/your-app-name.git
-   cd your-app-name
-   ```
-3. Follow the [Customizing for Your App](#-customizing-for-your-app) guide below to personalize the project name and metadata.
+2. Clone your new repository and follow [Customizing for Your App](#-customizing-for-your-app).
 
 ---
 
-## 🏛️ Architectural Structure
-
-The workspace is organized into four decoupled, single-responsibility crates:
+## 🏛️ Architecture
 
 ```mermaid
 graph TD
-    Shared["crates/shared<br/>(Domain Models, JSON/CSV/BSON Serialization, Page Routing, State)"]
-    App["crates/app<br/>(Leptos UI Components, Reactive State, Theme, Views, Modals)"]
-    Desktop["crates/desktop<br/>(Native Desktop App via Tauri v2) + mimalloc"]
-    Web["crates/web<br/>(Static WebAssembly Entrypoint, PWA Service Worker, Trunk Assets)"]
+    Shared["crates/shared<br/>(models, serialization, page routes)"]
+    App["crates/app<br/>(components, routes, storage, theme)"]
+    Web["crates/web<br/>(browser entry: hydrate or csr, static assets, PWA)"]
+    Ssg["crates/ssg<br/>(pre-renders routes to static HTML)"]
+    Desktop["crates/desktop<br/>(Tauri v2 shell)"]
 
     App --> Shared
-    Desktop --> App
-    Desktop --> Shared
     Web --> App
-    Web --> Shared
+    Ssg --> App
+    Desktop --> App
 ```
 
-- **[`crates/shared`](crates/shared)**: Core domain models, business logic, configuration (`ThemeMode`, `AppConfig`, `AppPage`, `AppState`), and interchange serialization (JSON, CSV, and compressed BSON import/export).
-- **[`crates/app`](crates/app)**: Modular Leptos UI components, reactive signals, responsive layout, dark/light theme engine, modal dialogs, and persistent multi-tier state management (`components/navbar.rs`, `components/item_list.rs`, `components/about.rs`, `components/modals.rs`, `components/theme.rs`).
-- **[`crates/desktop`](crates/desktop)**: Native desktop runner configured with Tauri v2, custom protocol asset serving, bundled application icons, and strict Content Security Policy.
-- **[`crates/web`](crates/web)**: WebAssembly client entrypoint with `wasm-bindgen`, Trunk bundling configuration, local PWA assets (`icon-192.png`, `icon-512.png`, `manifest.json`), Service Worker, and Cloudflare Pages headers.
+- **`crates/shared`**: domain models (`AppConfig`, `AppPage`, `AppState`) and JSON/CSV/BSON import and export.
+- **`crates/app`**: the Leptos UI and routes (`/`, `/about`, 404), with a `PageMeta` title and description per page. Exactly one rendering feature is enabled per build: `ssr`, `hydrate` or `csr` (there is no default).
+- **`crates/web`**: the wasm entry point (`hydrate()` or `start()`), `public/` assets (service worker, manifest, icons, self-hosted fonts, `_headers`) and the desktop Trunk `index.html`.
+- **`crates/ssg`**: a native binary that generates every static route to HTML, then finalises the site: it fills the service-worker precache list and build ID, and the CSP script hashes in `_headers`.
+- **`crates/desktop`**: the Tauri v2 runner.
+
+### Rendering modes
+
+| Target | Mode | Built with | Output |
+|---|---|---|---|
+| Web release | SSR (static) + hydration | `scripts/build-web.sh` (cargo-leptos + `ssg`) | `target/site` |
+| Desktop | CSR | Trunk (`Trunk.toml`) via Tauri | `crates/web/dist` |
+
+Hydration safety rule: the first client render must match the server HTML. Defaults render first; saved theme and state load afterwards in an effect (`client_ready()` in `crates/app/src/client.rs`).
 
 ---
 
 ## ✨ Key Features
 
-- **⚡ Serverless Static Web & Native Desktop Dual-Target**: Compile identical reactive application logic to static client-side WASM bundles for Cloudflare Pages and GitHub Pages or native desktop executables via Tauri v2.
-- **🧭 Multi-Page Layout**:
-  - **Top Navigation Bar**: Brand logo, active view switcher (`Dashboard` & `About`), visual theme toggle, dyslexia accessibility toggle, and quick modal triggers.
-  - **Dashboard Page**: Interactive item collection with real-time statistics, search & priority filtering, and instant creation.
-  - **About Page**: Architectural overview, live runtime diagnostics, active storage tier, and keyboard shortcuts guide.
-  - **Bottom Status Footer**: Live storage tier indicator (`LocalStorage` vs `IndexedDB`), quick page navigation links, and documentation links.
-- **💾 Automatic Multi-Tier State Persistence & Memory Protection**:
-  - **In-Memory Tier (RAM)**: Native reactive signal state for sub-microsecond latency and instant DOM reconciliation. Includes bounded capacity (`MEMORY_WORKING_SET_LIMIT` = 100 items) to prevent browser tab and process memory exhaustion (OOM).
-  - **Tier 1 (Fast Sync)**: Synchronous browser `LocalStorage` under dedicated key `serverless_leptos_app_state` for fast reloads (< 16 KB).
-  - **Tier 2 (IndexedDB Fallback)**: Structured, transactional `IndexedDB` backing store that receives synchronized copies of state and acts as a durable fallback to prevent memory from overfilling on large datasets.
-  - **Storage Diagnostics Bridge**: Real-time inspection of in-memory working sets, storage persistence status (`persisted` vs `ephemeral`), active storage tiers, and permission requests (`StorageManager.persist()`).
-- **📱 Responsive & Touch-Friendly UI**: Layout automatically adapts across widescreen monitors, tablets, and mobile devices with a responsive navbar, mobile drawer menu, search filters, and progress metrics.
-- **🎨 Theme Engine**: Built-in Charcoal Dark Mode and soothing Warm Light Mode with instant DOM attribute synchronization (`data-theme`) and persistence.
-- **⌨️ Intuitive Keyboard Support**: Press `Enter` to quickly submit new items and `Escape` to close open modal dialogs.
-- **📦 Data Interchange & File Downloads**:
-  - Built-in export and import dialogs supporting formatted **JSON**, RFC 4180-compliant **CSV**, and compact **Compressed BSON** (Zlib-compressed binary).
-  - Copy-to-clipboard notification feedback and direct browser file download triggers (`trigger_file_download`, `trigger_binary_download`).
-- **📶 Offline Progressive Web App (PWA)**:
-  - Bundled local offline icons (192x192 and 512x512 maskable PNGs) meeting Lighthouse PWA installability requirements.
-  - Hybrid service worker caching strategy (**Network-First** for `index.html` to ensure atomic releases; **Cache-First** for immutable, content-hashed `.wasm`, `.js`, and `.css` assets) with offline fallback.
-- **🛡️ SRI Minification Immunity**: Configured with `data-integrity="none"` in `index.html` to allow aggressive post-build asset minification (HTML, CSS, JS) without SRI hash mismatches or white screens.
-- **🚀 Automated CI/CD & Deployment Pipelines**: Fully compliant with Cloudflare Pages Build System v3 (`deploy.sh`), GitHub Pages (`.github/workflows/static.yml`), and GitHub Actions CI test suite with WASM browser tests (`.github/workflows/ci.yml`).
+- **Static SSR + hydration** with content-hashed `/pkg/` bundles and byte-reproducible HTML.
+- **Persistence on `spodeian-cache`**: preferences and blobs go through `PreferentialStore` (localStorage, IndexedDB or Cache API chosen per value); items go through a write-through `AsyncTieredStore` with a bounded in-memory working set. Failed saves are surfaced to the user rather than swallowed. State saved by 0.1.x is migrated automatically on first load.
+- **Telemetry viewer** showing real `spodeian-telemetry` metrics and log entries, with export and clipboard confirmation only on success.
+- **Offline PWA**: network-first navigations, cache-first hashed assets, and a precache list generated at build time. The cache is versioned per build.
+- **Strict CSP**: no external hosts, no `unsafe-eval`. Inline scripts are allowed by hash, generated at build time. Fonts (Atkinson Hyperlegible) are self-hosted.
+- **Accessibility**: skip link, `aria-current` navigation, dyslexia-friendly font option, and WCAG AA contrast for text colours enforced by a test.
+- **Themes**: dark and light, applied before first paint with no flash.
 
 ---
 
 ## 🛠️ Build Requirements
 
-- **Rust Toolchain**: Automatically managed via [`rust-toolchain.toml`](rust-toolchain.toml) (installs stable with `wasm32-unknown-unknown`).
-- **Trunk Bundler**:
-  ```bash
-  cargo install trunk
-  ```
-- **Node.js 24 LTS**: (Required for asset minification pipelines, Wrangler edge previews, and Cloudflare Pages compatibility; managed via [`.node-version`](.node-version) / [`.nvmrc`](.nvmrc)):
-  ```bash
-  nvm use # or fnm use
-  ```
-- *(Optional)* **wasm-opt** (Binaryen v132+) for release binary size optimization.
-- *(Optional)* **Tauri CLI** (for native desktop development):
-  ```bash
-  cargo install tauri-cli
-  ```
+- **Rust**: managed by [`rust-toolchain.toml`](rust-toolchain.toml) (includes `wasm32-unknown-unknown`).
+- **Web release**: `scripts/build-web.sh` installs pinned `cargo-leptos` (0.3.4) and a `wasm-bindgen-cli` matching `Cargo.lock`. It also needs **Binaryen (wasm-opt, a recent version)** and **Sass** on `PATH`, because cargo-leptos downloads of both can be blocked on locked-down networks.
+- **Desktop**: [Trunk](https://trunkrs.dev) and `cargo install tauri-cli`.
+- **Node.js** (see [`.node-version`](.node-version)) for Wrangler previews and Cloudflare Pages.
 
 ---
 
 ## 🚀 Development Quickstart
 
-### 1. Run Web App Locally (Trunk)
+### Web (pre-rendered release)
 ```bash
-trunk serve
+bash scripts/build-web.sh        # builds target/site
+npx wrangler pages dev target/site   # or any static file server
 ```
-Open [http://localhost:8080](http://localhost:8080) in your browser. Live reloading is automatically enabled.
 
-### 2. Run Native Desktop App (Tauri)
+### Desktop (Tauri, CSR)
 ```bash
 cargo tauri dev
 ```
-Launches the native desktop window with live webview reloading.
 
-### 3. Run Test Suite
+### Tests
 ```bash
-# Run all workspace tests (shared, app, web, desktop)
-cargo test --workspace
+# Native tests (server-rendering code and logic)
+cargo test --workspace --exclude desktop --features app/ssr
 
-# Or with cargo-nextest (faster, parallel execution)
-cargo nextest run --workspace
+# Browser tests (headless Chrome or Firefox, needs wasm-bindgen-cli matching Cargo.lock)
+cargo test -p web --features csr --tests --target wasm32-unknown-unknown
 ```
 
-### 4. Run WebAssembly Browser Tests
+### Lint (each rendering mode is checked separately)
 ```bash
-cargo test -p web --test wasm_tests --target wasm32-unknown-unknown
-```
-
-### 5. Run Static Analysis & Linter
-```bash
-cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo fmt --all -- --check && leptosfmt --check crates
+cargo clippy -p shared -p app -p ssg --all-targets --features app/ssr -- -D warnings
+cargo clippy -p app -p web --target wasm32-unknown-unknown --features app/hydrate,web/hydrate -- -D warnings
+cargo clippy -p app -p web --target wasm32-unknown-unknown --features app/csr,web/csr -- -D warnings
 ```
 
 ---
 
-## 📦 Production Builds & Deployment
+## 📦 Deployment
 
-### Static Serverless WASM Bundle (Trunk)
-```bash
-trunk build --release
-```
-The optimized output assets (`index.html`, `.wasm`, `.js`, `.css`, `_headers`, `manifest.json`, `sw.js`) will be located in `crates/web/dist/`.
+### Cloudflare Pages
+- **Build command**: `bash deploy.sh`
+- **Build output directory**: `target/site`
+- `_headers` (security and cache headers) is generated into `target/site`. `404.html` is served with status 404.
 
-### Cloudflare Pages (Build System v3)
+### GitHub Pages
+[`.github/workflows/static.yml`](.github/workflows/static.yml) builds with `scripts/build-web.sh` and deploys `target/site`.
 
-Deploy directly to Cloudflare Pages using the automated build script:
-
-```bash
-bash deploy.sh
-```
-
-#### Cloudflare Pages Dashboard Settings:
-- **Build System Version**: `v3` (2024/2026 build image)
-- **Framework Preset**: `None` (or `Custom`)
-- **Build Command**: `bash deploy.sh`
-- **Build Output Directory**: `crates/web/dist`
-- **Environment Variables**:
-  - `NODE_VERSION`: `24`
-  - `RUST_VERSION`: `stable` (Optional if `rust-toolchain.toml` is present)
-  - `CARGO_HOME`: `/opt/buildhome/.cargo`
-
-#### Local Preview with Wrangler:
-```bash
-trunk build --release
-npx wrangler pages dev crates/web/dist
-```
-
-### GitHub Pages Deployment
-
-The repository includes an automated GitHub Actions workflow in [`.github/workflows/static.yml`](.github/workflows/static.yml) that builds, minifies, and deploys your WASM web application to GitHub Pages whenever you push changes to `main`.
-
-### Native Desktop Executable (Tauri v2)
+### Desktop
 ```bash
 cargo tauri build
 ```
-The compiled release executable and installer bundles will be generated in `target/release/bundle/`.
+Bundles are written to `target/release/bundle/`. The desktop build does not precache anything (the placeholders in `sw.js` are left unfilled), because assets are served by Tauri.
 
 ---
 
 ## 🧩 Customizing for Your App
 
-1. **Rename Workspace & Metadata**: Update `name`, `version`, `authors`, and `repository` in [`Cargo.toml`](Cargo.toml) and subcrate manifests.
-2. **Define Domain Data**: Replace `Item` and `ItemCollection` in [`crates/shared/src/models.rs`](crates/shared/src/models.rs) with your application's domain models.
-3. **Build Views & Components**: Update or add reactive Leptos components in [`crates/app/src/components/`](crates/app/src/components/):
-   - [`components/navbar.rs`](crates/app/src/components/navbar.rs): Header navigation, tabs, and global tools.
-   - [`components/item_list.rs`](crates/app/src/components/item_list.rs): Reactive item listing and input forms.
-   - [`components/about.rs`](crates/app/src/components/about.rs): About page, architecture details, and diagnostics.
-   - [`components/modals.rs`](crates/app/src/components/modals.rs): Modal dialogs and data import/export.
-   - [`components/theme.rs`](crates/app/src/components/theme.rs): Theme manager and toggle button.
-4. **Update PWA & SEO Tags**: Customize `title`, meta description, OpenGraph tags, and icons in [`crates/web/index.html`](crates/web/index.html), [`crates/web/manifest.json`](crates/web/manifest.json), and [`crates/desktop/tauri.conf.json`](crates/desktop/tauri.conf.json).
+1. Rename the workspace and metadata in [`Cargo.toml`](Cargo.toml), `[[workspace.metadata.leptos]]` and `wrangler.toml`.
+2. Replace `Item` and `ItemCollection` in [`crates/shared/src/models.rs`](crates/shared/src/models.rs) with your domain models.
+3. Add pages: add a variant to `AppPage` and a route in [`crates/app/src/lib.rs`](crates/app/src/lib.rs). Use `SsrMode::Static(StaticRoute::new())` for anything that should be pre-rendered, and give it a `PageMeta`.
+4. Update `manifest.json`, `tauri.conf.json`, the `_headers` CSP (add any hosts you really need) and the `storage` namespace in `crates/app/src/storage.rs`.
+
+---
+
+## 🔄 Upgrading from 0.1.x
+
+- Web builds no longer use `trunk build`; use `scripts/build-web.sh`. The output directory is `target/site`, not `crates/web/dist` (still used for desktop).
+- Rendering features (`ssr`, `hydrate`, `csr`) have no default: pass one explicitly. The workspace-wide `--all-features` no longer applies.
+- `AppConfig.active_page` was removed; the router owns the current page. `shared::telemetry` was removed in favour of `spodeian-telemetry`.
+- `storage-bridge.js` was removed; storage is now Rust (`spodeian-cache`). Existing saved state migrates automatically.
+- CDN fonts were removed; the CSP forbids external hosts. If you add any, extend `_headers`.
+- Cloudflare Pages: change the output directory to `target/site`.
 
 ---
 
@@ -194,12 +152,15 @@ The compiled release executable and installer bundles will be generated in `targ
 
 | Test Suite | Location | Purpose |
 |---|---|---|
-| **App Tests** | `crates/app/tests/app_tests.rs` | Integration tests for reactive state, storage diagnostics, and serialization |
-| **Shared Model Tests** | `crates/shared/tests/shared_tests.rs` | Collection logic, JSON/CSV/BSON roundtrip, backward compatibility, page routing |
-| **Desktop Smoke** | `crates/desktop/tests/smoke_tests.rs` | Tauri context generation and configuration validation |
-| **Web Smoke** | `crates/web/tests/smoke_tests.rs` | WebAssembly client initialization and App state linkage |
-| **WASM Browser Tests** | `crates/web/tests/wasm_tests.rs` | Headless Chrome/Firefox DOM and localStorage persistence tests |
-| **Benchmarks** | `crates/shared/benches/serialization_benchmarks.rs` | Criterion benchmarks for state serialization performance |
+| App tests | `crates/app/tests/app_tests.rs` | State, storage diagnostics, stylesheet contrast (native) |
+| Shared tests | `crates/shared/tests/shared_tests.rs` | Collections, JSON/CSV/BSON round trips, page routing |
+| SSG tests | `crates/ssg/src/main.rs` | CSP script hashing, precache list, nonce stripping |
+| Web routing and storage | `crates/web/tests/{routing,storage}_tests.rs` | Browser tests for routing and persistence |
+| Web DOM | `crates/web/tests/wasm_tests.rs` | Headless Chrome/Firefox DOM tests |
+| Smoke | `crates/{web,desktop}/tests/smoke_tests.rs` | Entry points and Tauri configuration |
+| Benchmarks | `crates/shared/benches/` | Criterion serialization benchmarks |
+
+CI also builds the pre-rendered release and checks that each page contains its content without JavaScript.
 
 ---
 

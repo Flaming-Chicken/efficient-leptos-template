@@ -1,15 +1,87 @@
-//! Telemetry Dashboard Viewer Component for Leptos Web.
+//! Telemetry viewer: live event counts and recent log entries from `spodeian-telemetry`.
 
-use crate::storage::copy_to_clipboard;
 use leptos::prelude::*;
-use shared::TelemetryDashboardData;
+use spodeian_telemetry::{LogEntry, TelemetryMetrics, global_ring_buffer, metrics_snapshot};
+
+/// How many of the most recent log entries the viewer lists.
+const RECENT_ENTRIES: usize = 25;
+
+#[derive(Clone)]
+struct Snapshot {
+    metrics: TelemetryMetrics,
+    /// Newest first.
+    entries: Vec<LogEntry>,
+}
+
+fn take_snapshot() -> Snapshot {
+    let mut entries = global_ring_buffer().snapshot_recent(RECENT_ENTRIES);
+    entries.sort_by_key(|entry| std::cmp::Reverse(entry.timestamp_millis));
+    Snapshot {
+        metrics: metrics_snapshot(),
+        entries,
+    }
+}
+
+fn format_uptime(millis: u64) -> String {
+    let secs = millis / 1000;
+    match secs {
+        0..=59 => format!("{secs}s"),
+        60..=3599 => format!("{}m {}s", secs / 60, secs % 60),
+        _ => format!("{}h {}m", secs / 3600, (secs % 3600) / 60),
+    }
+}
+
+/// Seconds between a log entry and the snapshot, as "12s ago".
+fn format_age(entry_millis: u64, newest_millis: u64) -> String {
+    format!("{}s ago", newest_millis.saturating_sub(entry_millis) / 1000)
+}
+
+#[component]
+fn Kpi(label: &'static str, value: String, note: &'static str) -> impl IntoView {
+    view! {
+        <div class="kpi-card">
+            <div class="kpi-label">{label}</div>
+            <div class="kpi-value">{value}</div>
+            <div class="kpi-note">{note}</div>
+        </div>
+    }
+}
 
 #[component]
 pub fn TelemetryModal(
     is_open: RwSignal<bool>,
     #[prop(optional)] announcement: Option<RwSignal<String>>,
 ) -> impl IntoView {
-    let data = RwSignal::new(TelemetryDashboardData::default());
+    let snapshot = RwSignal::new(None::<Snapshot>);
+    // Take a fresh snapshot each time the dialog opens.
+    Effect::new(move |_| {
+        if is_open.get() {
+            snapshot.set(Some(take_snapshot()));
+        }
+    });
+
+    let announce = move |message: &str| {
+        if let Some(announcer) = announcement {
+            announcer.set(message.to_string());
+        }
+    };
+
+    let copy_snapshot = move |_| {
+        let Some(current) = snapshot.get_untracked() else {
+            return;
+        };
+        let Ok(json) = serde_json::to_string_pretty(&(&current.metrics, &current.entries)) else {
+            announce("Could not prepare the telemetry snapshot");
+            return;
+        };
+        // Only confirm the copy once the browser reports that it happened.
+        leptos::task::spawn_local(async move {
+            match spodeian_web_utils::write_clipboard_text(&json).await {
+                Ok(()) => announce("Telemetry snapshot copied to clipboard"),
+                Err(_) => announce("Could not copy: the browser blocked clipboard access"),
+            }
+        });
+    };
 
     view! {
         <Show when=move || is_open.get()>
@@ -21,110 +93,97 @@ pub fn TelemetryModal(
                     aria-modal="true"
                     aria-labelledby="telemetry-title"
                 >
-                    <div class="modal-header">
-                        <h2 id="telemetry-title">"📊 System Performance Telemetry"</h2>
-                        <span class="badge badge-success">"● Operational"</span>
-                    </div>
+                    {move || {
+                        snapshot
+                            .get()
+                            .map(|snap| {
+                                let m = snap.metrics.clone();
+                                let newest = snap
+                                    .entries
+                                    .first()
+                                    .map(|e| e.timestamp_millis)
+                                    .unwrap_or(0);
+                                let (badge_class, badge_text) = if m.errors == 0 {
+                                    ("badge badge-success", "No errors logged".to_string())
+                                } else {
+                                    ("badge badge-danger", format!("{} errors logged", m.errors))
+                                };
+                                view! {
+                                    <div class="modal-header">
+                                        <h2 id="telemetry-title">"Telemetry"</h2>
+                                        <span class=badge_class>{badge_text}</span>
+                                    </div>
 
-                    <div
-                        class="telemetry-kpis"
-                        style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0;"
-                    >
-                        <div
-                            class="kpi-card"
-                            style="padding: 10px; border: 1px solid var(--border-color, #333); border-radius: 6px;"
-                        >
-                            <div style="font-size: 11px; opacity: 0.7;">"Uptime"</div>
-                            <div style="font-size: 18px; font-weight: bold;">
-                                {move || format!("{}s", data.get().uptime_secs)}
-                            </div>
-                            <div style="font-size: 10px; opacity: 0.6;">"Online Duration"</div>
-                        </div>
-                        <div
-                            class="kpi-card"
-                            style="padding: 10px; border: 1px solid var(--border-color, #333); border-radius: 6px;"
-                        >
-                            <div style="font-size: 11px; opacity: 0.7;">"Operations"</div>
-                            <div style="font-size: 18px; font-weight: bold;">
-                                {move || data.get().total_operations}
-                            </div>
-                            <div style="font-size: 10px; opacity: 0.6;">"Total Processed"</div>
-                        </div>
-                        <div
-                            class="kpi-card"
-                            style="padding: 10px; border: 1px solid var(--border-color, #333); border-radius: 6px;"
-                        >
-                            <div style="font-size: 11px; opacity: 0.7;">"Success Rate"</div>
-                            <div style="font-size: 18px; font-weight: bold;">
-                                {move || format!("{:.2}%", data.get().success_rate)}
-                            </div>
-                            <div style="font-size: 10px; opacity: 0.6;">"Zero-Fault SLA"</div>
-                        </div>
-                        <div
-                            class="kpi-card"
-                            style="padding: 10px; border: 1px solid var(--border-color, #333); border-radius: 6px;"
-                        >
-                            <div style="font-size: 11px; opacity: 0.7;">"Throughput"</div>
-                            <div style="font-size: 18px; font-weight: bold;">
-                                {move || format!("{:.0} ops/s", data.get().throughput_ops_sec)}
-                            </div>
-                            <div style="font-size: 10px; opacity: 0.6;">"Peak Velocity"</div>
-                        </div>
-                    </div>
+                                    <div class="telemetry-kpis">
+                                        <Kpi
+                                            label="Uptime"
+                                            value=format_uptime(m.uptime_millis)
+                                            note="since the app started"
+                                        />
+                                        <Kpi
+                                            label="Events"
+                                            value=m.total_events().to_string()
+                                            note="logged this session"
+                                        />
+                                        <Kpi
+                                            label="Warnings"
+                                            value=m.warnings.to_string()
+                                            note="logged this session"
+                                        />
+                                        <Kpi
+                                            label="Errors"
+                                            value=m.errors.to_string()
+                                            note="logged this session"
+                                        />
+                                    </div>
 
-                    <div class="telemetry-channels" style="margin-top: 16px;">
-                        <h4 style="margin-bottom: 8px;">"Subsystem Channels & Health Telemetry"</h4>
-                        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
-                            <thead>
-                                <tr style="border-bottom: 1px solid var(--border-color, #444); text-align: left;">
-                                    <th style="padding: 6px;">"Channel"</th>
-                                    <th style="padding: 6px;">"Processed"</th>
-                                    <th style="padding: 6px;">"Latency"</th>
-                                    <th style="padding: 6px;">"Status"</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {move || {
-                                    data.get()
-                                        .channels
-                                        .into_iter()
-                                        .map(|ch| {
-                                            view! {
-                                                <tr style="border-bottom: 1px solid var(--border-subtle, #222);">
-                                                    <td style="padding: 6px;">{ch.name}</td>
-                                                    <td style="padding: 6px;">{ch.count}</td>
-                                                    <td style="padding: 6px;">
-                                                        {format!("{:.2} ms", ch.latency_ms)}
-                                                    </td>
-                                                    <td style="padding: 6px; color: var(--color-success, #4ade80);">
-                                                        {ch.status}
-                                                    </td>
+                                    <h3 class="telemetry-heading">
+                                        {format!(
+                                            "Recent log entries ({} of {} buffered)",
+                                            snap.entries.len(),
+                                            m.buffered_entries,
+                                        )}
+                                    </h3>
+                                    <div class="telemetry-log">
+                                        <table>
+                                            <thead>
+                                                <tr>
+                                                    <th scope="col">"When"</th>
+                                                    <th scope="col">"Level"</th>
+                                                    <th scope="col">"Source"</th>
+                                                    <th scope="col">"Message"</th>
                                                 </tr>
-                                            }
-                                        })
-                                        .collect::<Vec<_>>()
-                                }}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div
-                        class="modal-footer"
-                        style="margin-top: 20px; display: flex; justify-content: space-between;"
-                    >
+                                            </thead>
+                                            <tbody>
+                                                {snap
+                                                    .entries
+                                                    .into_iter()
+                                                    .map(|entry| {
+                                                        view! {
+                                                            <tr>
+                                                                <td>{format_age(entry.timestamp_millis, newest)}</td>
+                                                                <td>{entry.level}</td>
+                                                                <td>{entry.target}</td>
+                                                                <td>{entry.message}</td>
+                                                            </tr>
+                                                        }
+                                                    })
+                                                    .collect::<Vec<_>>()}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                }
+                            })
+                    }}
+                    <div class="modal-footer telemetry-footer">
+                        <button class="btn btn-secondary" on:click=copy_snapshot>
+                            "Copy snapshot"
+                        </button>
                         <button
                             class="btn btn-secondary"
-                            on:click=move |_| {
-                                if let Ok(json) = serde_json::to_string_pretty(&data.get()) {
-                                    copy_to_clipboard(&json);
-                                    if let Some(announcer) = announcement {
-                                        announcer
-                                            .set("Telemetry snapshot copied to clipboard".to_string());
-                                    }
-                                }
-                            }
+                            on:click=move |_| snapshot.set(Some(take_snapshot()))
                         >
-                            "📋 Copy Telemetry Snapshot"
+                            "Refresh"
                         </button>
                         <button class="btn btn-primary" on:click=move |_| is_open.set(false)>
                             "Close"
@@ -133,5 +192,23 @@ pub fn TelemetryModal(
                 </div>
             </div>
         </Show>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{format_age, format_uptime};
+
+    #[test]
+    fn uptime_is_readable_at_every_scale() {
+        assert_eq!(format_uptime(999), "0s");
+        assert_eq!(format_uptime(61_000), "1m 1s");
+        assert_eq!(format_uptime(3_720_000), "1h 2m");
+    }
+
+    #[test]
+    fn age_never_goes_negative() {
+        assert_eq!(format_age(5_000, 17_000), "12s ago");
+        assert_eq!(format_age(9_000, 1_000), "0s ago");
     }
 }

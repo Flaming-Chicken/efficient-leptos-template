@@ -10,10 +10,10 @@ pub fn apply_document_theme(_theme: ThemeMode) {
     {
         let theme = _theme;
         if let Some(window) = web_sys::window() {
-            if let Some(doc) = window.document() {
-                if let Some(html) = doc.document_element() {
-                    let _ = html.set_attribute("data-theme", theme.as_str());
-                }
+            if let Some(doc) = window.document()
+                && let Some(html) = doc.document_element()
+            {
+                let _ = html.set_attribute("data-theme", theme.as_str());
             }
             if let Ok(Some(storage)) = window.local_storage() {
                 let _ = storage.set_item(crate::storage::STORAGE_KEY_THEME, theme.as_str());
@@ -26,12 +26,11 @@ pub fn apply_document_theme(_theme: ThemeMode) {
 pub fn get_initial_theme() -> ThemeMode {
     #[cfg(target_arch = "wasm32")]
     {
-        if let Some(window) = web_sys::window() {
-            if let Ok(Some(storage)) = window.local_storage() {
-                if let Ok(Some(val)) = storage.get_item(crate::storage::STORAGE_KEY_THEME) {
-                    return ThemeMode::from_str(&val);
-                }
-            }
+        if let Some(window) = web_sys::window()
+            && let Ok(Some(storage)) = window.local_storage()
+            && let Ok(Some(val)) = storage.get_item(crate::storage::STORAGE_KEY_THEME)
+        {
+            return ThemeMode::from_str(&val);
         }
     }
     ThemeMode::Dark
@@ -72,13 +71,13 @@ pub fn apply_document_dyslexia(_enabled: bool) {
     #[cfg(target_arch = "wasm32")]
     {
         if let Some(window) = web_sys::window() {
-            if let Some(doc) = window.document() {
-                if let Some(html) = doc.document_element() {
-                    if _enabled {
-                        let _ = html.set_attribute("data-dyslexia", "true");
-                    } else {
-                        let _ = html.remove_attribute("data-dyslexia");
-                    }
+            if let Some(doc) = window.document()
+                && let Some(html) = doc.document_element()
+            {
+                if _enabled {
+                    let _ = html.set_attribute("data-dyslexia", "true");
+                } else {
+                    let _ = html.remove_attribute("data-dyslexia");
                 }
             }
             if let Ok(Some(storage)) = window.local_storage() {
@@ -96,12 +95,11 @@ pub fn apply_document_dyslexia(_enabled: bool) {
 pub fn get_initial_dyslexia() -> bool {
     #[cfg(target_arch = "wasm32")]
     {
-        if let Some(window) = web_sys::window() {
-            if let Ok(Some(storage)) = window.local_storage() {
-                if let Ok(Some(val)) = storage.get_item(crate::storage::STORAGE_KEY_DYSLEXIA) {
-                    return val == "true";
-                }
-            }
+        if let Some(window) = web_sys::window()
+            && let Ok(Some(storage)) = window.local_storage()
+            && let Ok(Some(val)) = storage.get_item(crate::storage::STORAGE_KEY_DYSLEXIA)
+        {
+            return val == "true";
         }
     }
     false

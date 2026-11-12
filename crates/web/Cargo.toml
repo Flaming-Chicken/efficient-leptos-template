@@ -1,11 +1,12 @@
 [package]
 name = "web"
-version.workspace = true
+version = "0.2.0"
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "WebAssembly client and WebRunner entrypoint for the Leptos template"
+publish = false
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -16,24 +17,22 @@ wasm-bindgen = { workspace = true }
 wasm-bindgen-futures = { workspace = true }
 web-sys = { workspace = true }
 js-sys = { workspace = true }
-console_error_panic_hook = { workspace = true }
-tracing-web = { workspace = true }
 
 tracing = { workspace = true }
 app = { workspace = true }
 shared = { workspace = true }
-tracing-subscriber.workspace = true
 spodeian-telemetry = { workspace = true }
 
 
 
+# hydrate: web release built by cargo-leptos · csr: desktop release built by Trunk
 [features]
-default = ["hydrate"]
 hydrate = ["app/hydrate", "leptos/hydrate"]
 csr = ["app/csr", "leptos/csr"]
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = { workspace = true }
+serde_json = { workspace = true }
 
 
 

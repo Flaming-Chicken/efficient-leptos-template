@@ -1,18 +1,34 @@
-@import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&display=swap');
-
+// Atkinson Hyperlegible (SIL Open Font License, see public/fonts/OFL.txt) is served from
+// this site, not a font CDN: it works offline and needs no third-party hosts in the CSP.
 @font-face {
-  font-family: 'Symbols Nerd Font';
-  src: url('https://cdn.jsdelivr.net/npm/@nerdfonts/font-webfont@v3.2.1/SymbolsNerdFont-Regular.woff2') format('woff2');
-  font-weight: normal;
+  font-family: 'Atkinson Hyperlegible';
+  src: url('/fonts/atkinson-hyperlegible-latin-400-normal.woff2') format('woff2');
+  font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Symbols Nerd Font Mono';
-  src: url('https://cdn.jsdelivr.net/npm/@nerdfonts/font-webfont@v3.2.1/SymbolsNerdFontMono-Regular.woff2') format('woff2');
-  font-weight: normal;
+  font-family: 'Atkinson Hyperlegible';
+  src: url('/fonts/atkinson-hyperlegible-latin-400-italic.woff2') format('woff2');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Atkinson Hyperlegible';
+  src: url('/fonts/atkinson-hyperlegible-latin-700-normal.woff2') format('woff2');
+  font-weight: 700;
   font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Atkinson Hyperlegible';
+  src: url('/fonts/atkinson-hyperlegible-latin-700-italic.woff2') format('woff2');
+  font-weight: 700;
+  font-style: italic;
   font-display: swap;
 }
 
@@ -62,7 +78,7 @@ $theme-tokens: (
     "border-subtle": #21262d,
     "text-primary": #f0f6fc,
     "text-secondary": #8b949e,
-    "text-muted": #6e7681,
+    "text-muted": #848d97,
     "accent-primary": #388bfd,
     "accent-hover": #58a6ff,
     "accent-bg": rgba(56, 139, 253, 0.15),
@@ -87,7 +103,7 @@ $theme-tokens: (
     "border-subtle": #e6e0d6,
     "text-primary": #1f2328,
     "text-secondary": #59636e,
-    "text-muted": #8c959f,
+    "text-muted": #656d76,
     "accent-primary": #0969da,
     "accent-hover": #1f883d,
     "accent-bg": rgba(9, 105, 218, 0.1),
@@ -367,6 +383,95 @@ html, body {
 
 .drawer-btn-danger {
     color: var(--danger);
+}
+
+/* Page links render as <a>, so keep them looking like the buttons around them. */
+a.drawer-btn,
+a.nav-btn {
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+}
+
+.drawer-btn-active {
+    font-weight: 700;
+    color: var(--accent-primary);
+    border-color: var(--accent-primary);
+}
+
+.telemetry-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 12px;
+    margin: 16px 0;
+}
+
+.kpi-card {
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+}
+
+.kpi-label,
+.kpi-note {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.kpi-value {
+    font-size: 1.125rem;
+    font-weight: 700;
+}
+
+.telemetry-heading {
+    margin: 16px 0 8px;
+    font-size: 0.95rem;
+}
+
+.telemetry-log {
+    max-height: 40vh;
+    overflow: auto;
+}
+
+.telemetry-log table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+}
+
+.telemetry-log th,
+.telemetry-log td {
+    padding: 6px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-subtle);
+    vertical-align: top;
+}
+
+.telemetry-footer {
+    margin-top: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.save-error {
+    margin: 0 0 1rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--danger);
+    border-radius: var(--radius-sm);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+}
+
+.not-found {
+    max-width: 40rem;
+    margin: 4rem auto;
+    text-align: center;
+}
+
+.not-found a {
+    color: var(--accent-primary);
 }
 
 .drawer-theme {
@@ -749,6 +854,10 @@ html, body {
     font-weight: 600;
     text-transform: uppercase;
 }
+
+/* Status badges keep primary text for contrast; the border carries the status colour. */
+.badge-success { border: 1px solid var(--success); color: var(--text-primary); }
+.badge-danger { border: 1px solid var(--danger); color: var(--text-primary); }
 
 .priority-low { background: var(--bg-subtle); color: var(--text-secondary); }
 .priority-medium { background: var(--accent-bg); color: var(--accent-primary); }
