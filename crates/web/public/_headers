@@ -1,0 +1,28 @@
+# Response headers for static hosts that read this file (Cloudflare Pages, Netlify).
+# The web build (`ssg`) replaces __INLINE_SCRIPT_HASHES__ with the hashes of the inline
+# scripts in the generated pages, so no 'unsafe-inline' or 'unsafe-eval' is needed.
+# style-src keeps 'unsafe-inline' because components use inline style attributes.
+# The cloudflareinsights.com entries are only needed if Cloudflare Web Analytics is on.
+
+/*
+  X-Frame-Options: SAMEORIGIN
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), interest-cohort=()
+  Cross-Origin-Opener-Policy: same-origin-allow-popups
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' __INLINE_SCRIPT_HASHES__ https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://cloudflareinsights.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'
+
+# Content-hashed bundles: the URL changes whenever the content does, so cache forever.
+/pkg/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# The service worker must never be cached, so browsers notice a new release.
+/sw.js
+  Cache-Control: no-cache, no-store, must-revalidate, max-age=0
+
+/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/manifest.json
+  Cache-Control: public, max-age=86400
+  Content-Type: application/manifest+json; charset=utf-8

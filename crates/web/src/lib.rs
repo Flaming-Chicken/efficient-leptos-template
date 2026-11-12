@@ -1,33 +1,27 @@
 #![recursion_limit = "256"]
-//! WebAssembly client entry point for the Leptos template.
+//! Browser entry points for the Leptos template.
+//!
+//! - `hydrate` (web release, built by cargo-leptos): the page arrives pre-rendered by the
+//!   `ssg` binary; cargo-leptos's generated script calls [`hydrate`] to make it interactive.
+//! - `csr` (desktop release, built by Trunk for Tauri): the page arrives empty and
+//!   [`start`] renders the app into it.
 
 use wasm_bindgen::prelude::*;
 
-#[wasm_bindgen(start)]
-pub fn main_js() {
+/// Makes a pre-rendered page interactive. Called by cargo-leptos's hydration script.
+#[cfg(feature = "hydrate")]
+#[wasm_bindgen]
+pub fn hydrate() {
     spodeian_telemetry::init_default();
+    tracing::info!("Hydrating pre-rendered page");
+    leptos::mount::hydrate_body(app::App);
+}
 
-    #[cfg(feature = "hydrate")]
-    {
-        let has_ssr_content = web_sys::window()
-            .and_then(|w| w.document())
-            .and_then(|doc| doc.query_selector(".app-root").ok().flatten())
-            .is_some();
-
-        if has_ssr_content {
-            tracing::info!("Hydrating Serverless Leptos application from server-rendered HTML...");
-            leptos::mount::hydrate_body(app::App);
-        } else {
-            tracing::info!(
-                "Static HTML shell detected; mounting Serverless Leptos application via mount_to_body..."
-            );
-            leptos::mount::mount_to_body(app::App);
-        }
-    }
-
-    #[cfg(not(feature = "hydrate"))]
-    {
-        tracing::info!("Mounting Serverless Leptos application in CSR fallback mode...");
-        leptos::mount::mount_to_body(app::App);
-    }
+/// Renders the app into an empty page. Runs automatically when the module loads.
+#[cfg(feature = "csr")]
+#[wasm_bindgen(start)]
+pub fn start() {
+    spodeian_telemetry::init_default();
+    tracing::info!("Rendering app in the browser (client-side rendering)");
+    leptos::mount::mount_to_body(app::App);
 }

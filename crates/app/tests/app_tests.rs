@@ -1,3 +1,5 @@
+#![cfg(not(target_arch = "wasm32"))]
+
 use app::storage::{StorageBackend, StorageDiagnostics};
 use shared::{
     AppState, Item, Priority, ThemeMode, export_to_compressed_bson, export_to_csv, export_to_json,
@@ -46,23 +48,17 @@ fn test_app_item_mutations() {
 }
 
 #[test]
-fn test_app_storage_diagnostics() {
+fn test_app_storage_diagnostics_defaults_and_labels() {
     let diag = StorageDiagnostics::default();
-    assert_eq!(diag.backend, StorageBackend::LocalStorage);
-    assert_eq!(
-        StorageBackend::LocalStorage.label(),
-        "Local Storage (Fast Tier)"
-    );
+    // Nothing is durable until storage has loaded.
+    assert_eq!(diag.backend, StorageBackend::MemoryOnly);
     assert_eq!(
         StorageBackend::IndexedDb.label(),
         "IndexedDB (Structured Relational Tier)"
     );
-    assert_eq!(
-        StorageBackend::NativeCas.label(),
-        "Native CAS (Content-Addressed Disk Tier)"
-    );
     assert!(!diag.quota_exceeded);
     assert!(!diag.idb_active);
+    assert!(diag.last_error.is_none());
 }
 
 #[test]
@@ -155,34 +151,169 @@ fn test_app_search_and_filter() {
     assert_eq!(critical_items[0].id, "item-1");
 }
 
-#[test]
-fn test_app_storage_diagnostics_and_memory_capacity() {
-    use app::storage::{MEMORY_WORKING_SET_LIMIT, query_storage_diagnostics};
+fn fresh_dir(name: &str) -> std::path::PathBuf {
+    let dir = std::env::temp_dir().join(format!("leptos_template_{name}_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    dir
+}
 
-    let mut diag = query_storage_diagnostics();
-    assert_eq!(diag.memory_capacity_limit, MEMORY_WORKING_SET_LIMIT);
-    assert_eq!(diag.memory_items_count, 0);
-    assert!(!diag.fallback_tier_active);
-
-    // Simulate bulk items exceeding memory capacity
-    let mut state = AppState::new();
-    for i in 0..110 {
-        state.collection.add(shared::Item::new(
-            format!("bulk-{i}"),
+fn bulk_state(count: usize) -> AppState {
+    let mut state = AppState::default();
+    for i in 0..count {
+        state.collection.add(Item::new(
+            format!("bulk-{i:04}"),
             format!("Bulk Item {i}"),
-            "Memory stress test",
+            "Working-set test",
             Priority::Low,
         ));
     }
+    state
+}
 
-    let count = state.collection.total_count();
-    diag.memory_items_count = count;
-    diag.fallback_tier_active = count > MEMORY_WORKING_SET_LIMIT || diag.idb_active;
+#[test]
+fn test_store_round_trip_past_the_working_set_limit() {
+    use app::storage::{AppStore, MEMORY_WORKING_SET_LIMIT, StorageDiagnostics, StorageStatus};
 
-    assert_eq!(diag.memory_items_count, 114);
-    assert!(diag.fallback_tier_active);
+    let dir = fresh_dir("working_set");
+    pollster::block_on(async {
+        let store = AppStore::open_native(&dir).expect("open");
+        assert!(store.load().await.expect("load empty").is_none());
 
-    // Verify save_state_to_storage execution
-    let save_res = app::storage::save_state_to_storage(&state);
-    assert!(save_res.is_ok());
+        let mut state = bulk_state(MEMORY_WORKING_SET_LIMIT + 1);
+        state.config.theme = ThemeMode::Light;
+        store.save(&state).await.expect("save");
+
+        // The cache holds the limit; the 101st record lives only in the durable tier.
+        let (cached, stored) = store.item_counts();
+        assert_eq!(cached, MEMORY_WORKING_SET_LIMIT);
+        assert_eq!(stored, MEMORY_WORKING_SET_LIMIT + 1);
+        let diag = StorageDiagnostics::from_status(&StorageStatus {
+            cached_items: cached,
+            stored_items: stored,
+            ..Default::default()
+        });
+        assert!(diag.fallback_tier_active);
+
+        // A new session gets everything back, in the original order.
+        let reopened = AppStore::open_native(&dir).expect("reopen");
+        let loaded = reopened.load().await.expect("load").expect("saved state");
+        assert_eq!(loaded, state);
+    });
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn test_store_saves_only_what_changed_and_removes_deleted_items() {
+    use app::storage::AppStore;
+
+    let dir = fresh_dir("incremental");
+    pollster::block_on(async {
+        let store = AppStore::open_native(&dir).expect("open");
+        let mut state = bulk_state(3);
+        store.save(&state).await.expect("first save");
+
+        state.collection.items[1].completed = true;
+        state.collection.remove("bulk-0000");
+        state
+            .collection
+            .add(Item::new("new", "New", "", Priority::High));
+        store.save(&state).await.expect("second save");
+
+        let reopened = AppStore::open_native(&dir).expect("reopen");
+        let loaded = reopened.load().await.expect("load").expect("saved state");
+        assert_eq!(loaded, state);
+        let ids: Vec<&str> = loaded
+            .collection
+            .items
+            .iter()
+            .map(|i| i.id.as_str())
+            .collect();
+        assert_eq!(ids, vec!["bulk-0001", "bulk-0002", "new"]);
+        assert_eq!(reopened.item_counts().1, 3);
+    });
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn test_saving_before_storage_is_ready_is_reported() {
+    use app::storage::{StorageError, save_state_to_storage};
+
+    // No store has been opened in this thread, so the save must not claim success.
+    assert!(matches!(
+        save_state_to_storage(&AppState::new()),
+        Err(StorageError::NotReady)
+    ));
+}
+
+/// Reads the `$theme-tokens` map out of the stylesheet: theme name -> token -> hex colour.
+fn stylesheet_palettes() -> Vec<(
+    String,
+    std::collections::HashMap<String, spodeian_tokens::ColorRgba>,
+)> {
+    let scss = include_str!("../../web/style.scss");
+    let start = scss.find("$theme-tokens: (").expect("theme map");
+    let end = scss[start..]
+        .find("@each $theme-name")
+        .expect("end of theme map")
+        + start;
+    let mut themes = Vec::new();
+    for line in scss[start..end].lines().map(str::trim) {
+        let Some((name, value)) = line.split_once(": ") else {
+            continue;
+        };
+        let name = name.trim_matches('"').to_string();
+        let value = value.trim_end_matches(',');
+        if name.starts_with('$') {
+            continue;
+        }
+        if value == "(" {
+            themes.push((name, std::collections::HashMap::new()));
+        } else if let Some(hex) = value.strip_prefix('#')
+            && hex.len() == 6
+            && let Ok(rgb) = u32::from_str_radix(hex, 16)
+            && let Some((_, tokens)) = themes.last_mut()
+        {
+            let color =
+                spodeian_tokens::ColorRgba::rgb((rgb >> 16) as u8, (rgb >> 8) as u8, rgb as u8);
+            tokens.insert(name, color);
+        }
+    }
+    themes
+}
+
+#[test]
+fn test_stylesheet_defines_every_theme_mode() {
+    let names: Vec<String> = stylesheet_palettes()
+        .into_iter()
+        .map(|(name, _)| name)
+        .collect();
+    for mode in [
+        ThemeMode::Dark,
+        ThemeMode::Light,
+        ThemeMode::HighContrastDark,
+        ThemeMode::HighContrastLight,
+    ] {
+        assert!(
+            names.iter().any(|n| n == mode.as_str()),
+            "style.scss has no palette for theme `{}`",
+            mode.as_str()
+        );
+    }
+}
+
+#[test]
+fn test_stylesheet_text_colours_meet_wcag_aa() {
+    use spodeian_tokens::ColorRgba;
+
+    for (theme, tokens) in stylesheet_palettes() {
+        for text in ["text-primary", "text-secondary", "text-muted"] {
+            for background in ["bg-primary", "bg-surface", "bg-surface-elevated"] {
+                let ratio = ColorRgba::contrast_ratio(tokens[text], tokens[background]);
+                assert!(
+                    ratio >= 4.5,
+                    "{theme}: {text} on {background} is {ratio:.2}:1, below WCAG AA 4.5:1"
+                );
+            }
+        }
+    }
 }

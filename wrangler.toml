@@ -1,8 +1,6 @@
 name = "serverless-leptos-template"
 compatibility_date = "2026-08-18"
-compatibility_flags = ["nodejs_compat"]
-pages_build_output_dir = "crates/web/dist"
+pages_build_output_dir = "target/site"
 
 [vars]
 ENVIRONMENT = "production"
-NODE_VERSION = "24"
