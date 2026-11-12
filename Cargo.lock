@@ -4387,7 +4387,7 @@ checksum = "3763264f6b73151db08c50ff20d7d8a0b8796e021cdea7ceedad07b80155fa0e"
 [[package]]
 name = "spodeian-cache"
 version = "1.1.0"
-source = "git+https://github.com/Flaming-Chicken/spodeian-core?rev=f64fb4718b03718b8fdce744f027ec1310f348ab#f64fb4718b03718b8fdce744f027ec1310f348ab"
+source = "git+https://github.com/Spodeian/spodeian-core?tag=v2.0.0#4b325d308aabbe70498f27627f83ebcd742d2361"
 dependencies = [
  "base64 0.22.1",
  "js-sys",
@@ -4403,8 +4403,8 @@ dependencies = [
 
 [[package]]
 name = "spodeian-export"
-version = "1.1.0"
-source = "git+https://github.com/Flaming-Chicken/spodeian-core?rev=f64fb4718b03718b8fdce744f027ec1310f348ab#f64fb4718b03718b8fdce744f027ec1310f348ab"
+version = "2.0.0"
+source = "git+https://github.com/Spodeian/spodeian-core?tag=v2.0.0#4b325d308aabbe70498f27627f83ebcd742d2361"
 dependencies = [
  "bson",
  "miniz_oxide",
@@ -4416,7 +4416,7 @@ dependencies = [
 [[package]]
 name = "spodeian-telemetry"
 version = "1.1.0"
-source = "git+https://github.com/Flaming-Chicken/spodeian-core?rev=f64fb4718b03718b8fdce744f027ec1310f348ab#f64fb4718b03718b8fdce744f027ec1310f348ab"
+source = "git+https://github.com/Spodeian/spodeian-core?tag=v2.0.0#4b325d308aabbe70498f27627f83ebcd742d2361"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
@@ -4430,7 +4430,7 @@ dependencies = [
 [[package]]
 name = "spodeian-tokens"
 version = "1.1.0"
-source = "git+https://github.com/Flaming-Chicken/spodeian-core?rev=f64fb4718b03718b8fdce744f027ec1310f348ab#f64fb4718b03718b8fdce744f027ec1310f348ab"
+source = "git+https://github.com/Spodeian/spodeian-core?tag=v2.0.0#4b325d308aabbe70498f27627f83ebcd742d2361"
 dependencies = [
  "serde",
  "serde_json",
@@ -4439,7 +4439,7 @@ dependencies = [
 [[package]]
 name = "spodeian-web-utils"
 version = "1.1.0"
-source = "git+https://github.com/Flaming-Chicken/spodeian-core?rev=f64fb4718b03718b8fdce744f027ec1310f348ab#f64fb4718b03718b8fdce744f027ec1310f348ab"
+source = "git+https://github.com/Spodeian/spodeian-core?tag=v2.0.0#4b325d308aabbe70498f27627f83ebcd742d2361"
 dependencies = [
  "js-sys",
  "tracing",
