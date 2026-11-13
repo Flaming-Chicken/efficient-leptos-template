@@ -2,7 +2,7 @@
 
 [![CI & Test Suite](https://github.com/Spodeian/efficient-leptos-template/actions/workflows/ci.yml/badge.svg)](https://github.com/Spodeian/efficient-leptos-template/actions/workflows/ci.yml)
 [![GitHub Pages](https://github.com/Spodeian/efficient-leptos-template/actions/workflows/static.yml/badge.svg)](https://github.com/Spodeian/efficient-leptos-template/actions/workflows/static.yml)
-[![License: MIT OR Apache-2.0](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
+[![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-blue.svg)](LICENSE.md)
 [![Rust: 2024 Edition](https://img.shields.io/badge/Rust-2024%20Edition-orange.svg)](https://www.rust-lang.org)
 [![Leptos: 0.8](https://img.shields.io/badge/Leptos-0.8-crimson.svg)](https://leptos.dev)
 [![Tauri: v2](https://img.shields.io/badge/Tauri-v2-blue.svg)](https://v2.tauri.app)
@@ -166,4 +166,10 @@ CI also builds the pre-rendered release and checks that each page contains its c
 
 ## 📄 License
 
-This template is dual-licensed under [MIT](LICENSE-MIT) or [Apache 2.0](LICENSE-APACHE) at your option.
+Licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE.md). You may use,
+change and share this software for any noncommercial purpose. For a
+commercial license, contact [Spodeian](https://github.com/Spodeian). Earlier
+releases keep the license they were published under.
+
+Projects generated from this template inherit the PolyForm Noncommercial
+License unless Spodeian grants otherwise.
