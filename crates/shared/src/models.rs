@@ -42,6 +42,7 @@ pub struct Item {
     pub description: String,
     pub priority: Priority,
     pub completed: bool,
+    #[serde(with = "spodeian_export::u64_i64_compat")]
     pub created_at: u64,
 }
 
@@ -234,17 +235,37 @@ impl Default for AppConfig {
     }
 }
 
+/// Current persisted JSON schema version for [`AppState`].
+pub const CURRENT_SCHEMA_VERSION: u32 = 1;
+
+fn default_schema_version() -> u32 {
+    CURRENT_SCHEMA_VERSION
+}
+
 /// Root state container.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AppState {
+    #[serde(default = "default_schema_version")]
+    pub schema_version: u32,
     pub collection: ItemCollection,
     pub config: AppConfig,
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        Self {
+            schema_version: CURRENT_SCHEMA_VERSION,
+            collection: ItemCollection::default(),
+            config: AppConfig::default(),
+        }
+    }
 }
 
 impl AppState {
     pub fn new() -> Self {
         Self {
+            schema_version: CURRENT_SCHEMA_VERSION,
             collection: ItemCollection::with_sample_data(),
             config: AppConfig::default(),
         }

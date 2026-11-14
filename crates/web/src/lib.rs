@@ -6,6 +6,7 @@
 //! - `csr` (desktop release, built by Trunk for Tauri): the page arrives empty and
 //!   [`start`] renders the app into it.
 
+#[cfg(any(feature = "hydrate", feature = "csr"))]
 use wasm_bindgen::prelude::*;
 
 /// Makes a pre-rendered page interactive. Called by cargo-leptos's hydration script.

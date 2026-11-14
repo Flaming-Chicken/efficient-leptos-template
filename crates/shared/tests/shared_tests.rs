@@ -108,3 +108,165 @@ fn test_state_saved_before_url_routing_still_loads() {
     let state: AppState = serde_json::from_str(legacy).expect("legacy state should load");
     assert_eq!(state.config.theme, ThemeMode::Light);
 }
+
+#[test]
+fn test_versioned_envelope_and_legacy_schema_migration() {
+    use shared::CURRENT_SCHEMA_VERSION;
+    use spodeian_persist::StateMigrator;
+
+    let legacy_unversioned = r#"{"collection":{"items":[]},"config":{"theme":"Dark"}}"#;
+    let migrated = import_from_json(legacy_unversioned).expect("legacy unversioned JSON should migrate");
+    assert_eq!(migrated.schema_version, CURRENT_SCHEMA_VERSION);
+
+    let state = AppState::new();
+    let wrapped = StateMigrator::serialize_versioned(&state, CURRENT_SCHEMA_VERSION, 1_700_000_000.0)
+        .expect("serialize versioned");
+    let restored = import_from_json(&wrapped).expect("import versioned snapshot");
+    assert_eq!(state, restored);
+}
+
+mod prop_tests {
+    use super::*;
+    use proptest::prelude::*;
+    use shared::CURRENT_SCHEMA_VERSION;
+    use spodeian_leptos_ui::{normalize_theme, toggle_theme_value};
+    use spodeian_persist::StateMigrator;
+
+    fn arb_priority() -> impl Strategy<Value = Priority> {
+        prop_oneof![
+            Just(Priority::Low),
+            Just(Priority::Medium),
+            Just(Priority::High),
+            Just(Priority::Critical),
+        ]
+    }
+
+    fn arb_theme() -> impl Strategy<Value = ThemeMode> {
+        prop_oneof![
+            Just(ThemeMode::Dark),
+            Just(ThemeMode::Light),
+            Just(ThemeMode::HighContrastDark),
+            Just(ThemeMode::HighContrastLight),
+        ]
+    }
+
+    fn arb_single_line_text() -> impl Strategy<Value = String> {
+        proptest::collection::vec(
+            prop_oneof![
+                Just('a'),
+                Just('Z'),
+                Just('0'),
+                Just(','),
+                Just('"'),
+                Just(' '),
+                Just('-'),
+                Just('!'),
+                Just('é'),
+                Just('λ'),
+            ],
+            1..32,
+        )
+        .prop_map(|chars| {
+            let s: String = chars.into_iter().collect();
+            let trimmed = s.trim().to_string();
+            if trimmed.is_empty() {
+                "item".to_string()
+            } else {
+                trimmed
+            }
+        })
+    }
+
+    fn arb_item() -> impl Strategy<Value = Item> {
+        (
+            arb_single_line_text(),
+            arb_single_line_text(),
+            arb_single_line_text(),
+            arb_priority(),
+            any::<bool>(),
+            any::<u64>(),
+        )
+            .prop_map(|(id, title, description, priority, completed, created_at)| Item {
+                id,
+                title,
+                description,
+                priority,
+                completed,
+                created_at,
+            })
+    }
+
+    proptest! {
+        #[test]
+        fn prop_versioned_state_json_and_bson_roundtrip(
+            items in proptest::collection::vec(arb_item(), 0..16),
+            theme in arb_theme(),
+            auto_save in any::<bool>(),
+            show_completed in any::<bool>(),
+            filter_priority in proptest::option::of(arb_priority()),
+            search_query in "[a-zA-Z0-9 _,-]{0,24}",
+        ) {
+            let state = AppState {
+                schema_version: CURRENT_SCHEMA_VERSION,
+                collection: ItemCollection { items },
+                config: shared::AppConfig {
+                    theme,
+                    auto_save,
+                    show_completed,
+                    filter_priority,
+                    search_query,
+                },
+            };
+
+            let json = export_to_json(&state).expect("json export");
+            let from_json = import_from_json(&json).expect("json import");
+            prop_assert_eq!(&from_json, &state);
+            prop_assert_eq!(from_json.schema_version, CURRENT_SCHEMA_VERSION);
+
+            let enveloped = StateMigrator::serialize_versioned(&state, CURRENT_SCHEMA_VERSION, 42.0)
+                .expect("versioned wrap");
+            let from_envelope = import_from_json(&enveloped).expect("versioned import");
+            prop_assert_eq!(&from_envelope, &state);
+
+            let bson_bytes = export_to_compressed_bson(&state).expect("bson export");
+            let from_bson = import_from_compressed_bson(&bson_bytes).expect("bson import");
+            prop_assert_eq!(from_bson, state);
+        }
+
+        #[test]
+        fn prop_csv_roundtrip_handles_commas_quotes_and_unicode(
+            items in proptest::collection::vec(arb_item(), 1..12),
+        ) {
+            let collection = ItemCollection { items };
+            let csv = export_to_csv(&collection).expect("csv export");
+            let restored = import_from_csv(&csv).expect("csv import");
+            prop_assert_eq!(restored.items.len(), collection.items.len());
+            for (orig, imp) in collection.items.iter().zip(restored.items.iter()) {
+                prop_assert_eq!(&imp.id, &orig.id);
+                prop_assert_eq!(&imp.title, &orig.title);
+                prop_assert_eq!(&imp.description, &orig.description);
+                prop_assert_eq!(imp.priority, orig.priority);
+                prop_assert_eq!(imp.completed, orig.completed);
+                prop_assert_eq!(imp.created_at, orig.created_at);
+            }
+        }
+
+        #[test]
+        fn prop_theme_normalization_and_cycle_invariants(raw in ".*") {
+            let normalized = normalize_theme(&raw);
+            prop_assert!(matches!(
+                normalized,
+                "dark" | "light" | "high-contrast-dark" | "high-contrast-light"
+            ));
+            let mode = ThemeMode::from_str(normalized);
+            prop_assert_eq!(mode.as_str(), normalized);
+
+            // Cycling 4 times always returns to the same normalized mode.
+            let mut cur = normalized;
+            for _ in 0..4 {
+                cur = toggle_theme_value(cur);
+            }
+            prop_assert_eq!(cur, normalized);
+        }
+    }
+}

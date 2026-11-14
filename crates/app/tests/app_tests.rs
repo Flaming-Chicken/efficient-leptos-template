@@ -317,3 +317,46 @@ fn test_stylesheet_text_colours_meet_wcag_aa() {
         }
     }
 }
+
+#[cfg(feature = "ssr")]
+#[test]
+fn test_error_fallback_view_renders_accessible_alert() {
+    use app::ErrorFallbackView;
+    use leptos::prelude::*;
+    use spodeian_leptos_ui::ErrorBoundaryRecovery;
+
+    let owner = Owner::new();
+    let html = owner.with(|| {
+        let recovery = ErrorBoundaryRecovery::from_errors(["Injected rendering fault"]);
+        view! { <ErrorFallbackView recovery=recovery /> }.to_html()
+    });
+
+    assert!(html.contains(r#"role="alert""#));
+    assert!(html.contains("Something went wrong"));
+    assert!(html.contains("Injected rendering fault"));
+    assert!(html.contains("Reset View"));
+}
+
+#[cfg(feature = "ssr")]
+#[test]
+fn test_about_page_renders_workspace_version() {
+    use app::components::AboutPage;
+    use leptos::prelude::*;
+
+    let owner = Owner::new();
+    let html = owner.with(|| {
+        let state = RwSignal::new(AppState::new());
+        let diag = Memo::new(move |_| StorageDiagnostics::default());
+        view! { <AboutPage state=state diag=diag /> }.to_html()
+    });
+
+    let expected = format!("Version {}", env!("CARGO_PKG_VERSION"));
+    assert!(
+        html.contains(&expected),
+        "Expected AboutPage HTML to contain `{expected}`"
+    );
+    assert!(
+        !html.contains("Version 0.1.0"),
+        "AboutPage HTML still contains stale `Version 0.1.0`"
+    );
+}

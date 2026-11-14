@@ -19,6 +19,14 @@ The example app has a top bar, routed Dashboard and About pages, interactive ite
 
 ## 🚀 Using this Template
 
+### Option A: `cargo-generate` (Recommended)
+```bash
+cargo install cargo-generate
+cargo generate --git https://github.com/Spodeian/efficient-leptos-template.git
+```
+Interactive prompts in [`cargo-generate.toml`](cargo-generate.toml) let you keep or exclude `crates/desktop` (Tauri v2), offline PWA assets (`sw.js`, `manifest.json`), and Cloudflare Pages configuration (`wrangler.toml`, `_headers`, `deploy.sh`).
+
+### Option B: GitHub Template
 1. Click **"Use this template"** > **"Create a new repository"** on GitHub.
 2. Clone your new repository and follow [Customizing for Your App](#-customizing-for-your-app).
 
@@ -64,8 +72,20 @@ Hydration safety rule: the first client render must match the server HTML. Defau
 - **Telemetry viewer** showing real `spodeian-telemetry` metrics and log entries, with export and clipboard confirmation only on success.
 - **Offline PWA**: network-first navigations, cache-first hashed assets, and a precache list generated at build time. The cache is versioned per build.
 - **Strict CSP**: no external hosts, no `unsafe-eval`. Inline scripts are allowed by hash, generated at build time. Fonts (Atkinson Hyperlegible) are self-hosted.
-- **Accessibility**: skip link, `aria-current` navigation, dyslexia-friendly font option, and WCAG AA contrast for text colours enforced by a test.
-- **Themes**: dark and light, applied before first paint with no flash.
+- **Accessibility**: skip link, `aria-current` navigation, modal focus trapping via `spodeian-leptos-ui`, dyslexia-friendly font option, recoverable `<ErrorBoundary>` alert view, and WCAG AA contrast for text colours enforced by automated tests.
+- **Themes**: Dark, Warm Light, High Contrast Dark, and High Contrast Light applied before first paint via `spodeian-tokens` and `spodeian-leptos-ui`.
+
+### Comparison vs. Official Leptos Starters
+
+| Capability | `efficient-leptos-template` | Official `start-axum` | Official `start-trunk` |
+|---|---|---|---|
+| **Targets** | Static SSR + Hydration **and** Tauri v2 Desktop CSR | Axum SSR Server + Hydration | Client-Side CSR only |
+| **Hosting** | Zero-backend static hosts (`crates/ssg` + `_headers`) & Desktop | Requires Rust server runtime | Static CSR only (empty shell HTML) |
+| **Persistence** | `spodeian-cache` + `spodeian-persist` (IndexedDB, LocalStorage, Cache API, CAS) with `schema_version` migration | None built in | None built in |
+| **Interchange** | Built-in JSON, RFC 4180 CSV, and Zlib-compressed BSON (`spodeian-export`) | None built in | None built in |
+| **Security & PWA** | Build-time `sw.js` precache & SHA-256 CSP inline-script hashing (`spodeian-web-utils::pwa`) | None built in | Manual config |
+| **A11y & Resilience** | Modal Tab trap (`spodeian-leptos-ui`), dyslexia toggle, `<ErrorBoundary>` recovery, WCAG AA contrast tests | Minimal starter markup | Minimal starter markup |
+| **Observability** | Live `spodeian-telemetry` ring-buffer modal & Criterion serialization benchmarks | Standard tracing setup | Standard console logging |
 
 ---
 
@@ -150,15 +170,15 @@ Bundles are written to `target/release/bundle/`. The desktop build does not prec
 
 ## 🧪 Testing & Quality Assurance
 
-| Test Suite | Location | Purpose |
+| Test Suite | Location | Verified Host Count & Purpose |
 |---|---|---|
-| App tests | `crates/app/tests/app_tests.rs` | State, storage diagnostics, stylesheet contrast (native) |
-| Shared tests | `crates/shared/tests/shared_tests.rs` | Collections, JSON/CSV/BSON round trips, page routing |
-| SSG tests | `crates/ssg/src/main.rs` | CSP script hashing, precache list, nonce stripping |
-| Web routing and storage | `crates/web/tests/{routing,storage}_tests.rs` | Browser tests for routing and persistence |
-| Web DOM | `crates/web/tests/wasm_tests.rs` | Headless Chrome/Firefox DOM tests |
-| Smoke | `crates/{web,desktop}/tests/smoke_tests.rs` | Entry points and Tauri configuration |
-| Benchmarks | `crates/shared/benches/` | Criterion serialization benchmarks |
+| App unit tests | `crates/app/src/components/telemetry_viewer.rs` | `2` unit tests for telemetry uptime & relative age formatting |
+| App integration & SSR tests | `crates/app/tests/app_tests.rs` | `15` tests covering state mutations, storage diagnostics, working-set spillover, SSR `<ErrorFallbackView>` / `<AboutPage>`, and WCAG AA contrast enforcement |
+| Shared unit & property tests | `crates/shared/tests/shared_tests.rs` | `13` tests (including `proptest` suites for `u64` BSON bit-preservation, schema migration, RFC 4180 CSV round-trips, and theme cycles) |
+| SSG unit tests | `crates/ssg/src/main.rs` | `4` tests validating delegated `spodeian_web_utils::pwa` CSP script hashing, precache URLs, and nonce stripping |
+| Web native smoke test | `crates/web/tests/smoke_tests.rs` | `1` native smoke test (`35` native workspace tests total excluding `desktop`) |
+| Web browser tests | `crates/web/tests/{routing,storage,wasm}_tests.rs` | Headless Chrome/Firefox DOM, routing, and IndexedDB persistence suites (`--target wasm32-unknown-unknown`) |
+| Benchmarks | `crates/shared/benches/serialization_benchmarks.rs` | Criterion benchmarks for 100-item JSON, CSV, and compressed BSON export |
 
 CI also builds the pre-rendered release and checks that each page contains its content without JavaScript.
 

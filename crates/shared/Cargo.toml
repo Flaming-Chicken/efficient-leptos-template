@@ -14,6 +14,7 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 spodeian-tokens = { workspace = true }
 spodeian-export = { workspace = true }
+spodeian-persist = { workspace = true }
 
 [features]
 default = ["std"]
@@ -21,6 +22,9 @@ std = ["serde/std", "serde_json/std", "thiserror/std"]
 
 [dev-dependencies]
 criterion = { workspace = true }
+proptest = { workspace = true }
+spodeian-leptos-ui = { workspace = true }
+spodeian-persist = { workspace = true }
 
 [[bench]]
 name = "serialization_benchmarks"
