@@ -115,12 +115,14 @@ fn test_versioned_envelope_and_legacy_schema_migration() {
     use spodeian_persist::StateMigrator;
 
     let legacy_unversioned = r#"{"collection":{"items":[]},"config":{"theme":"Dark"}}"#;
-    let migrated = import_from_json(legacy_unversioned).expect("legacy unversioned JSON should migrate");
+    let migrated =
+        import_from_json(legacy_unversioned).expect("legacy unversioned JSON should migrate");
     assert_eq!(migrated.schema_version, CURRENT_SCHEMA_VERSION);
 
     let state = AppState::new();
-    let wrapped = StateMigrator::serialize_versioned(&state, CURRENT_SCHEMA_VERSION, 1_700_000_000.0)
-        .expect("serialize versioned");
+    let wrapped =
+        StateMigrator::serialize_versioned(&state, CURRENT_SCHEMA_VERSION, 1_700_000_000.0)
+            .expect("serialize versioned");
     let restored = import_from_json(&wrapped).expect("import versioned snapshot");
     assert_eq!(state, restored);
 }
@@ -186,14 +188,16 @@ mod prop_tests {
             any::<bool>(),
             any::<u64>(),
         )
-            .prop_map(|(id, title, description, priority, completed, created_at)| Item {
-                id,
-                title,
-                description,
-                priority,
-                completed,
-                created_at,
-            })
+            .prop_map(
+                |(id, title, description, priority, completed, created_at)| Item {
+                    id,
+                    title,
+                    description,
+                    priority,
+                    completed,
+                    created_at,
+                },
+            )
     }
 
     proptest! {
