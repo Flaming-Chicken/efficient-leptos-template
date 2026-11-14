@@ -187,7 +187,7 @@ impl AppStore {
     }
 
     /// Opens a store in a directory. Used by native tests and tools; the desktop app runs
-    /// in a webview and uses [`AppStore::open`].
+    /// in a webview and uses `AppStore::open`.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn open_native(dir: impl AsRef<std::path::Path>) -> Result<Self, StorageError> {
         let dir = dir.as_ref();

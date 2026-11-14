@@ -2,9 +2,9 @@
 //! Browser entry points for the Leptos template.
 //!
 //! - `hydrate` (web release, built by cargo-leptos): the page arrives pre-rendered by the
-//!   `ssg` binary; cargo-leptos's generated script calls [`hydrate`] to make it interactive.
+//!   `ssg` binary; cargo-leptos's generated script calls `hydrate` to make it interactive.
 //! - `csr` (desktop release, built by Trunk for Tauri): the page arrives empty and
-//!   [`start`] renders the app into it.
+//!   `start` renders the app into it.
 
 #[cfg(any(feature = "hydrate", feature = "csr"))]
 use wasm_bindgen::prelude::*;
