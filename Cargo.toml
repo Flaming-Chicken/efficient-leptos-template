@@ -12,7 +12,7 @@ members = [
 [workspace.package]
 # Release version of the template as a whole (README, tags). Each crate sets its own
 # version in its manifest; crates/desktop/tauri.conf.json must match the desktop crate.
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Liam <spodeian@proton.me>"]
 edition = "2024"
 license = "PolyForm-Noncommercial-1.0.0"
