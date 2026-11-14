@@ -7,6 +7,7 @@ exclude = [
     ".wrangler",
     "node_modules",
     "Cargo.lock",
+    "CHANGELOG.md",
 ]
 
 [placeholders.include_tauri_desktop]
