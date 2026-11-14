@@ -26,7 +26,7 @@ pub fn AboutPage(state: RwSignal<AppState>, diag: Memo<StorageDiagnostics>) -> i
                     {concat!(
                         "Version ",
                         env!("CARGO_PKG_VERSION"),
-                        " • Rust 2024 • Leptos 0.8 • Tauri v2"
+                        " • Rust 2024 • Leptos 0.8 • Tauri v2",
                     )}
                 </span>
             </div>

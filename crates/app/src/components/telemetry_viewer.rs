@@ -36,10 +36,7 @@ fn format_age(entry_millis: u64, newest_millis: u64) -> String {
 #[component]
 fn Kpi(spec: KpiCardSpec) -> impl IntoView {
     view! {
-        <div
-            class="kpi-card"
-            style=format!("border-top: 2px solid {};", spec.accent_color)
-        >
+        <div class="kpi-card" style=format!("border-top: 2px solid {};", spec.accent_color)>
             <div class="kpi-label">{spec.label}</div>
             <div class="kpi-value">{spec.value}</div>
             <div class="kpi-note">{spec.subtext}</div>
