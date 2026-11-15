@@ -24,9 +24,6 @@ use tracing::{error, info, warn};
 
 use leptos::prelude::*;
 
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::JsCast;
-
 /// Errors arising during state persistence.
 #[derive(Error, Debug)]
 pub enum StorageError {
@@ -190,7 +187,7 @@ impl AppStore {
     }
 
     /// Opens a store in a directory. Used by native tests and tools; the desktop app runs
-    /// in a webview and uses [`AppStore::open`].
+    /// in a webview and uses `AppStore::open`.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn open_native(dir: impl AsRef<std::path::Path>) -> Result<Self, StorageError> {
         let dir = dir.as_ref();
@@ -406,26 +403,15 @@ pub fn save_state_to_storage(state: &AppState) -> Result<(), StorageError> {
 
 /// Current diagnostics: the live storage status plus PWA install flags. Reactive when
 /// called inside a reactive scope.
-#[allow(unused_mut)]
 pub fn query_storage_diagnostics() -> StorageDiagnostics {
     let mut diag = STATUS
         .with(Cell::get)
         .map(|status| StorageDiagnostics::from_status(&status.get()))
         .unwrap_or_default();
 
-    #[cfg(target_arch = "wasm32")]
-    {
-        if let Some(window) = web_sys::window() {
-            let flag = |name: &str| {
-                js_sys::Reflect::get(&window, &wasm_bindgen::JsValue::from_str(name))
-                    .ok()
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(false)
-            };
-            diag.pwa_install_available = flag("__pwaInstallAvailable");
-            diag.is_pwa_installed = flag("__pwaInstalled");
-        }
-    }
+    let env_diag = spodeian_persist::query_storage_diagnostics();
+    diag.pwa_install_available = env_diag.pwa_install_available;
+    diag.is_pwa_installed = env_diag.is_pwa_installed;
 
     diag
 }
@@ -445,22 +431,7 @@ pub fn request_persistent_storage() {
     });
 }
 
-/// Trigger native PWA install prompt
-pub fn trigger_pwa_install() {
-    #[cfg(target_arch = "wasm32")]
-    {
-        if let Some(window) = web_sys::window()
-            && let Ok(func) = js_sys::Reflect::get(
-                &window,
-                &wasm_bindgen::JsValue::from_str("__triggerPWAInstall"),
-            )
-            && let Some(func) = func.dyn_ref::<js_sys::Function>()
-        {
-            let _ = func.call0(&window);
-            info!("Triggered __triggerPWAInstall from Leptos");
-        }
-    }
-}
+pub use spodeian_persist::trigger_pwa_install;
 
 pub use spodeian_web_utils::{
     copy_to_clipboard, trigger_binary_download, trigger_text_download,

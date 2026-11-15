@@ -11,7 +11,7 @@ use shared::{
 };
 use tracing::info;
 
-/// Helper to trap Tab navigation inside modal dialogs (WCAG 2.4.3).
+/// Helper to trap Tab navigation inside modal dialogs (WCAG 2.4.3) via `spodeian-leptos-ui`.
 #[allow(unused_variables)]
 pub fn handle_modal_tab_trap(
     ev: &web_sys::KeyboardEvent,
@@ -21,27 +21,8 @@ pub fn handle_modal_tab_trap(
     if ev.key() == "Tab" {
         #[cfg(target_arch = "wasm32")]
         {
-            if let Some(doc) = web_sys::window().and_then(|w| w.document()) {
-                let active = doc.active_element();
-                if ev.shift_key() {
-                    if let (Some(active), Some(first)) = (active.as_ref(), first_el)
-                        && first.is_same_node(Some(active.as_ref()))
-                    {
-                        ev.prevent_default();
-                        if let Some(last) = last_el {
-                            let _ = last.focus();
-                        }
-                    }
-                } else {
-                    if let (Some(active), Some(last)) = (active.as_ref(), last_el)
-                        && last.is_same_node(Some(active.as_ref()))
-                    {
-                        ev.prevent_default();
-                        if let Some(first) = first_el {
-                            let _ = first.focus();
-                        }
-                    }
-                }
+            if spodeian_leptos_ui::trap_tab_between_endpoints(ev.shift_key(), first_el, last_el) {
+                ev.prevent_default();
             }
         }
     }
@@ -249,14 +230,17 @@ pub fn HelpModal(is_open: RwSignal<bool>) -> impl IntoView {
                                 <section class="help-section">
                                     <h4>"Keyboard Shortcuts"</h4>
                                     <ul>
-                                        <li>
-                                            <kbd>"Enter"</kbd>
-                                            " — Quickly submit new item creation in form"
-                                        </li>
-                                        <li>
-                                            <kbd>"Escape"</kbd>
-                                            " — Dismiss any open modal dialog"
-                                        </li>
+                                        {spodeian_leptos_ui::default_web_shortcuts()
+                                            .into_iter()
+                                            .map(|entry| {
+                                                view! {
+                                                    <li>
+                                                        <kbd>{entry.keys}</kbd>
+                                                        {format!(" — {}", entry.description)}
+                                                    </li>
+                                                }
+                                            })
+                                            .collect::<Vec<_>>()}
                                     </ul>
                                 </section>
                             </div>

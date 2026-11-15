@@ -65,8 +65,12 @@ async fn urls_drive_navigation() {
 
     // The back button returns to the previous page.
     window.history().unwrap().back().unwrap();
-    next_frame().await;
-    next_frame().await;
+    for _ in 0..10 {
+        next_frame().await;
+        if pathname() == "/about" {
+            break;
+        }
+    }
     assert_eq!(pathname(), "/about");
     assert!(document().title().starts_with("About |"));
 

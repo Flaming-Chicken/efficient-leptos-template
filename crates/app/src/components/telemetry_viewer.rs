@@ -1,6 +1,8 @@
-//! Telemetry viewer: live event counts and recent log entries from `spodeian-telemetry`.
+//! Telemetry viewer: live event counts and recent log entries from `spodeian-telemetry`
+//! and KPI view models from `spodeian-leptos-ui`.
 
 use leptos::prelude::*;
+use spodeian_leptos_ui::{KpiCardSpec, TelemetrySummary, format_relative_age_millis};
 use spodeian_telemetry::{LogEntry, TelemetryMetrics, global_ring_buffer, metrics_snapshot};
 
 /// How many of the most recent log entries the viewer lists.
@@ -9,6 +11,7 @@ const RECENT_ENTRIES: usize = 25;
 #[derive(Clone)]
 struct Snapshot {
     metrics: TelemetryMetrics,
+    summary: TelemetrySummary,
     /// Newest first.
     entries: Vec<LogEntry>,
 }
@@ -16,33 +19,27 @@ struct Snapshot {
 fn take_snapshot() -> Snapshot {
     let mut entries = global_ring_buffer().snapshot_recent(RECENT_ENTRIES);
     entries.sort_by_key(|entry| std::cmp::Reverse(entry.timestamp_millis));
+    let metrics = metrics_snapshot();
+    let summary = TelemetrySummary::from_metrics(&metrics);
     Snapshot {
-        metrics: metrics_snapshot(),
+        metrics,
+        summary,
         entries,
-    }
-}
-
-fn format_uptime(millis: u64) -> String {
-    let secs = millis / 1000;
-    match secs {
-        0..=59 => format!("{secs}s"),
-        60..=3599 => format!("{}m {}s", secs / 60, secs % 60),
-        _ => format!("{}h {}m", secs / 3600, (secs % 3600) / 60),
     }
 }
 
 /// Seconds between a log entry and the snapshot, as "12s ago".
 fn format_age(entry_millis: u64, newest_millis: u64) -> String {
-    format!("{}s ago", newest_millis.saturating_sub(entry_millis) / 1000)
+    format_relative_age_millis(entry_millis, newest_millis)
 }
 
 #[component]
-fn Kpi(label: &'static str, value: String, note: &'static str) -> impl IntoView {
+fn Kpi(spec: KpiCardSpec) -> impl IntoView {
     view! {
-        <div class="kpi-card">
-            <div class="kpi-label">{label}</div>
-            <div class="kpi-value">{value}</div>
-            <div class="kpi-note">{note}</div>
+        <div class="kpi-card" style=format!("border-top: 2px solid {};", spec.accent_color)>
+            <div class="kpi-label">{spec.label}</div>
+            <div class="kpi-value">{spec.value}</div>
+            <div class="kpi-note">{spec.subtext}</div>
         </div>
     }
 }
@@ -115,26 +112,12 @@ pub fn TelemetryModal(
                                     </div>
 
                                     <div class="telemetry-kpis">
-                                        <Kpi
-                                            label="Uptime"
-                                            value=format_uptime(m.uptime_millis)
-                                            note="since the app started"
-                                        />
-                                        <Kpi
-                                            label="Events"
-                                            value=m.total_events().to_string()
-                                            note="logged this session"
-                                        />
-                                        <Kpi
-                                            label="Warnings"
-                                            value=m.warnings.to_string()
-                                            note="logged this session"
-                                        />
-                                        <Kpi
-                                            label="Errors"
-                                            value=m.errors.to_string()
-                                            note="logged this session"
-                                        />
+                                        {snap
+                                            .summary
+                                            .cards
+                                            .into_iter()
+                                            .map(|spec| view! { <Kpi spec=spec /> })
+                                            .collect::<Vec<_>>()}
                                     </div>
 
                                     <h3 class="telemetry-heading">
@@ -197,13 +180,14 @@ pub fn TelemetryModal(
 
 #[cfg(test)]
 mod tests {
-    use super::{format_age, format_uptime};
+    use super::format_age;
+    use spodeian_leptos_ui::format_uptime_millis;
 
     #[test]
     fn uptime_is_readable_at_every_scale() {
-        assert_eq!(format_uptime(999), "0s");
-        assert_eq!(format_uptime(61_000), "1m 1s");
-        assert_eq!(format_uptime(3_720_000), "1h 2m");
+        assert_eq!(format_uptime_millis(999), "0s");
+        assert_eq!(format_uptime_millis(61_000), "1m 1s");
+        assert_eq!(format_uptime_millis(3_720_000), "1h 2m");
     }
 
     #[test]

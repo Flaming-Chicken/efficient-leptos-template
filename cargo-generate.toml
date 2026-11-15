@@ -1,0 +1,36 @@
+[template]
+cargo_generate_version = ">=0.18.0"
+exclude = [
+    "target",
+    "dist",
+    "crates/web/dist",
+    ".wrangler",
+    "node_modules",
+    "Cargo.lock",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+]
+
+[placeholders.include_tauri_desktop]
+type = "bool"
+prompt = "Include the Tauri v2 native desktop runner crate (crates/desktop)?"
+default = true
+
+[placeholders.include_pwa]
+type = "bool"
+prompt = "Include offline PWA service worker and manifest support?"
+default = true
+
+[placeholders.include_cloudflare_pages]
+type = "bool"
+prompt = "Include Cloudflare Pages deployment configuration (wrangler.toml, _headers, deploy.sh)?"
+default = true
+
+[conditional.'!include_tauri_desktop']
+ignore = ["crates/desktop", "Trunk.toml", "src-tauri"]
+
+[conditional.'!include_pwa']
+ignore = ["crates/web/public/sw.js", "crates/web/public/manifest.json"]
+
+[conditional.'!include_cloudflare_pages']
+ignore = ["wrangler.toml", "crates/web/public/_headers", "deploy.sh"]

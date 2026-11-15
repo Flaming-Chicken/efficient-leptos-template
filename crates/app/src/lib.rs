@@ -52,6 +52,52 @@ fn NotFound() -> impl IntoView {
     }
 }
 
+/// Recoverable alert surface displayed by Leptos [`ErrorBoundary`] and unit-tested in SSR mode.
+#[component]
+pub fn ErrorFallbackView(
+    recovery: spodeian_leptos_ui::ErrorBoundaryRecovery,
+    #[prop(optional)] reset_epoch: Option<RwSignal<u64>>,
+) -> impl IntoView {
+    view! {
+        <section
+            class="card error-boundary-fallback"
+            role="alert"
+            aria-live="assertive"
+            style="background: var(--bg-surface); border: 1px solid var(--danger); border-radius: 12px; padding: 24px; max-width: 680px; margin: 24px auto;"
+        >
+            <h2 style="margin-top: 0; color: var(--danger);">{recovery.title}</h2>
+            <p style="color: var(--text-primary);">{recovery.summary}</p>
+            {(!recovery.details.is_empty())
+                .then(|| {
+                    view! {
+                        <ul
+                            class="error-details"
+                            style="color: var(--text-muted); font-family: var(--font-mono); font-size: 0.875rem;"
+                        >
+                            {recovery
+                                .details
+                                .into_iter()
+                                .map(|detail| view! { <li>{detail}</li> })
+                                .collect::<Vec<_>>()}
+                        </ul>
+                    }
+                })}
+            <div style="margin-top: 16px;">
+                <button
+                    class="btn btn-primary"
+                    on:click=move |_| {
+                        if let Some(epoch) = reset_epoch {
+                            epoch.update(|v| *v = v.saturating_add(1));
+                        }
+                    }
+                >
+                    "Reset View"
+                </button>
+            </div>
+        </section>
+    }
+}
+
 #[component]
 pub fn App() -> impl IntoView {
     provide_meta_context();
@@ -92,6 +138,7 @@ pub fn App() -> impl IntoView {
     let show_storage_modal = RwSignal::new(false);
     let show_telemetry_modal = RwSignal::new(false);
     let mobile_menu_open = RwSignal::new(false);
+    let route_reset_epoch = RwSignal::new(0u64);
 
     // Warning banner dismissal signals
     let dismissed_ephemeral = RwSignal::new(false);
@@ -267,34 +314,53 @@ pub fn App() -> impl IntoView {
                         }
                     }}
 
-                    <Routes fallback=NotFound>
-                        <Route
-                            path=path!("/")
-                            ssr=SsrMode::Static(StaticRoute::new())
-                            view=move || {
-                                view! {
-                                    <PageMeta page=AppPage::Dashboard />
-                                    <ItemList state=state announcement=announcement />
-                                }
+                    <ErrorBoundary fallback=move |errors| {
+                        let messages: Vec<String> = errors
+                            .get()
+                            .into_iter()
+                            .map(|(_, err)| err.to_string())
+                            .collect();
+                        let recovery = spodeian_leptos_ui::ErrorBoundaryRecovery::from_errors(
+                            messages,
+                        );
+                        view! {
+                            <ErrorFallbackView recovery=recovery reset_epoch=route_reset_epoch />
+                        }
+                    }>
+                        {move || {
+                            let _epoch = route_reset_epoch.get();
+                            view! {
+                                <Routes fallback=NotFound>
+                                    <Route
+                                        path=path!("/")
+                                        ssr=SsrMode::Static(StaticRoute::new())
+                                        view=move || {
+                                            view! {
+                                                <PageMeta page=AppPage::Dashboard />
+                                                <ItemList state=state announcement=announcement />
+                                            }
+                                        }
+                                    />
+                                    <Route
+                                        path=path!("/about")
+                                        ssr=SsrMode::Static(StaticRoute::new())
+                                        view=move || {
+                                            view! {
+                                                <PageMeta page=AppPage::About />
+                                                <AboutPage state=state diag=diag />
+                                            }
+                                        }
+                                    />
+                                    // Pre-rendered as 404.html, which static hosts serve for unknown paths.
+                                    <Route
+                                        path=path!("/404")
+                                        ssr=SsrMode::Static(StaticRoute::new())
+                                        view=NotFound
+                                    />
+                                </Routes>
                             }
-                        />
-                        <Route
-                            path=path!("/about")
-                            ssr=SsrMode::Static(StaticRoute::new())
-                            view=move || {
-                                view! {
-                                    <PageMeta page=AppPage::About />
-                                    <AboutPage state=state diag=diag />
-                                }
-                            }
-                        />
-                        // Pre-rendered as 404.html, which static hosts serve for unknown paths.
-                        <Route
-                            path=path!("/404")
-                            ssr=SsrMode::Static(StaticRoute::new())
-                            view=NotFound
-                        />
-                    </Routes>
+                        }}
+                    </ErrorBoundary>
                 </main>
 
                 <footer class="app-footer">

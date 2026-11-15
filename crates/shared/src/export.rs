@@ -1,12 +1,18 @@
 //! Serialization and data interchange engines for JSON and CSV import/export.
 
-use crate::models::{AppState, Item, ItemCollection, Priority};
+use crate::models::{AppState, CURRENT_SCHEMA_VERSION, Item, ItemCollection, Priority};
+use spodeian_export::{escape_csv_field, parse_csv_line as parse_csv_fields};
+use spodeian_persist::StateMigrator;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum ExportError {
     #[error("JSON serialization error: {0}")]
     JsonSerialize(#[from] serde_json::Error),
+    #[error("State migration error: {0}")]
+    Migration(String),
+    #[error("Core export error: {0}")]
+    Core(#[from] spodeian_export::ExportError),
     #[error("CSV parsing error: {0}")]
     CsvParse(String),
     #[error("Invalid priority format: {0}")]
@@ -15,18 +21,24 @@ pub enum ExportError {
     EmptyData,
 }
 
-/// Serializes application state to formatted JSON.
+/// Serializes application state to formatted JSON via `spodeian_export`.
 pub fn export_to_json(state: &AppState) -> Result<String, ExportError> {
-    serde_json::to_string_pretty(state).map_err(ExportError::JsonSerialize)
+    spodeian_export::export_to_json(state).map_err(ExportError::Core)
 }
 
-/// Deserializes application state from JSON string.
+/// Deserializes application state from a raw or versioned-envelope JSON string using
+/// `spodeian_persist::StateMigrator`, normalizing `schema_version` to [`CURRENT_SCHEMA_VERSION`].
 pub fn import_from_json(json_str: &str) -> Result<AppState, ExportError> {
     let trimmed = json_str.trim();
     if trimmed.is_empty() {
         return Err(ExportError::EmptyData);
     }
-    serde_json::from_str(trimmed).map_err(ExportError::JsonSerialize)
+    let mut state = StateMigrator::deserialize_versioned_or_raw::<AppState>(trimmed)
+        .map_err(|e| ExportError::Migration(e.to_string()))?;
+    if state.schema_version == 0 || state.schema_version < CURRENT_SCHEMA_VERSION {
+        state.schema_version = CURRENT_SCHEMA_VERSION;
+    }
+    Ok(state)
 }
 
 /// Serializes item collection to CSV string.
@@ -136,8 +148,6 @@ fn items_hash(val: &str) -> u32 {
     }
     h
 }
-
-use spodeian_export::{escape_csv_field, parse_csv_line as parse_csv_fields};
 
 /// Exports the entire application state into compressed BSON binary bytes (Zlib-compressed BSON).
 pub fn export_to_compressed_bson(state: &AppState) -> Result<Vec<u8>, String> {

@@ -23,7 +23,11 @@ pub fn AboutPage(state: RwSignal<AppState>, diag: Memo<StorageDiagnostics>) -> i
                     class="badge"
                     style="background: var(--bg-surface-elevated); padding: 4px 12px; border-radius: 9999px; font-family: var(--font-mono); font-size: 0.85rem; border: 1px solid var(--border-color);"
                 >
-                    "Version 0.1.0 • Rust 2024 • Leptos 0.8 • Tauri v2"
+                    {concat!(
+                        "Version ",
+                        env!("CARGO_PKG_VERSION"),
+                        " • Rust 2024 • Leptos 0.8 • Tauri v2",
+                    )}
                 </span>
             </div>
 
