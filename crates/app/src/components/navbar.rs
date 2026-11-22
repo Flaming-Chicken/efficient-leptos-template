@@ -176,7 +176,7 @@ pub fn Navbar(
                             }
                                 .into_any()
                         } else {
-                            view! {}.into_any()
+                            ().into_any()
                         }
                     }}
                     <button class="nav-btn" on:click=move |_| show_storage_modal.set(true)>
@@ -204,7 +204,7 @@ pub fn Navbar(
                             }
                                 .into_any()
                         } else {
-                            view! {}.into_any()
+                            ().into_any()
                         }
                     }}
                     <button
@@ -297,7 +297,7 @@ pub fn Navbar(
                                     }
                                         .into_any()
                                 } else {
-                                    view! {}.into_any()
+                                    ().into_any()
                                 }
                             }}
                             <button
@@ -342,7 +342,7 @@ pub fn Navbar(
                                     }
                                         .into_any()
                                 } else {
-                                    view! {}.into_any()
+                                    ().into_any()
                                 }
                             }}
                             <button
@@ -385,7 +385,7 @@ pub fn Navbar(
                     }
                         .into_any()
                 } else {
-                    view! {}.into_any()
+                    ().into_any()
                 }
             }}
         </header>

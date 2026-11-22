@@ -124,7 +124,7 @@ pub fn ResetModal(
                 }
                     .into_any()
             } else {
-                view! {}.into_any()
+                ().into_any()
             }
         }}
     }
@@ -257,7 +257,7 @@ pub fn HelpModal(
                 }
                     .into_any()
             } else {
-                view! {}.into_any()
+                ().into_any()
             }
         }}
     }
@@ -551,7 +551,7 @@ pub fn ImportModal(
                                         view! { <div class="alert alert-error">{err}</div> }
                                             .into_any()
                                     }
-                                    None => view! {}.into_any(),
+                                    None => ().into_any(),
                                 }}
                             </div>
                             <div class="modal-footer">
@@ -567,7 +567,7 @@ pub fn ImportModal(
                 }
                     .into_any()
             } else {
-                view! {}.into_any()
+                ().into_any()
             }
         }}
     }
@@ -848,7 +848,7 @@ pub fn ExportModal(
                                         view! { <div class="alert alert-error">{err}</div> }
                                             .into_any()
                                     }
-                                    None => view! {}.into_any(),
+                                    None => ().into_any(),
                                 }}
                             </div>
                             <div class="modal-footer" style="flex-wrap: wrap;">
@@ -870,7 +870,7 @@ pub fn ExportModal(
                 }
                     .into_any()
             } else {
-                view! {}.into_any()
+                ().into_any()
             }
         }}
     }
@@ -1024,7 +1024,7 @@ pub fn StorageModal(
                                             }
                                                 .into_any()
                                         } else {
-                                            view! {}.into_any()
+                                            ().into_any()
                                         }}
                                         {if d.pwa_install_available && !d.is_pwa_installed {
                                             view! {
@@ -1034,7 +1034,7 @@ pub fn StorageModal(
                                             }
                                                 .into_any()
                                         } else {
-                                            view! {}.into_any()
+                                            ().into_any()
                                         }} <button class="btn btn-primary" on:click=on_export_bson>
                                             "Export Compressed .bson Backup"
                                         </button>
@@ -1060,7 +1060,7 @@ pub fn StorageModal(
                 }
                     .into_any()
             } else {
-                view! {}.into_any()
+                ().into_any()
             }
         }}
     }
@@ -1277,7 +1277,7 @@ pub fn CommandPaletteModal(
                 }
                     .into_any()
             } else {
-                view! {}.into_any()
+                ().into_any()
             }
         }}
     }

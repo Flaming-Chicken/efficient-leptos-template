@@ -295,7 +295,7 @@ pub fn ItemList(
                                 }
                                     .into_any()
                             } else {
-                                view! {}.into_any()
+                                ().into_any()
                             }
                         }}
                     </div>
@@ -396,7 +396,7 @@ pub fn ItemList(
                                             view! { <p class="item-description">{item.description}</p> }
                                                 .into_any()
                                         } else {
-                                            view! {}.into_any()
+                                            ().into_any()
                                         }}
                                     </div>
                                     <div class="item-actions">
@@ -426,7 +426,7 @@ pub fn ItemList(
                             }
                                 .into_any()
                         } else {
-                            view! {}.into_any()
+                            ().into_any()
                         }
                     }}
                 </div>
