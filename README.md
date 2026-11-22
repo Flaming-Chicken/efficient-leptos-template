@@ -13,7 +13,19 @@ A modular Rust & [Leptos 0.8](https://leptos.dev) template with two release targ
 - **Web**: pre-rendered static HTML that hydrates in the browser (SSR + hydration, no server). Pages carry their content without JavaScript, then become interactive. Deploys to any static host (Cloudflare Pages, GitHub Pages).
 - **Desktop**: a client-side-rendered (CSR) bundle built with Trunk and loaded by Tauri v2 (Windows, macOS, Linux).
 
-The example app has a top bar, routed Dashboard and About pages, interactive item management, offline support (PWA) and persistent storage built on the `spodeian-*` libraries.
+The example app has a top bar, routed Dashboard (`/`), Analytics (`/analytics`), and About (`/about`) pages, interactive item management, Undo/Redo, a searchable Command Palette (`Ctrl+K`), SVG/HTML/share-link interchange, `spodeian-parallel` sweeps, bundled WGSL WebGPU shader support, Tauri v2 backend IPC commands, offline PWA support, and persistent storage built on the `spodeian-*` libraries. See [`ARCHITECTURE.md`](ARCHITECTURE.md) for deep technical details.
+
+> **Web-only release?** If your Leptos project deploys exclusively to serverless static edge hosts without a desktop/Tauri target, start from [`efficient-leptos-edge-template`](../efficient-leptos-edge-template) instead.
+
+---
+
+## Choosing Across the Three Spodeian Templates
+
+| Template | Best For | Architecture | Compute, GPU & Native Target |
+|---|---|---|---|
+| **`efficient-leptos-template`** *(this repo)* | Apps shipping **both** a pre-rendered website and a native desktop/mobile executable | 5 crates (`shared`, `app`, `web`, `ssg`, `desktop`) | Static SSR + WASM `hydrate` + Tauri v2 `csr` + native Rayon IPC commands + WGSL shader ready |
+| **`efficient-leptos-edge-template`** | Pure zero-backend edge websites, SEO content, calculators, PWAs | 4 crates (`shared`, `app`, `web`, `ssg`) — zero desktop deps | Static SSR + WASM `hydrate` only, JSON-LD, `sitemap.xml`, `_redirects`, Rayon SSR / SIMD128 WASM |
+| **`efficient-egui-template`** | Custom 2D/3D viewports, CAD/audio/science GUIs, single-binary desktop+web apps | 4 crates (`shared`, `app`, `desktop`, `web`) + `spodeian-ui` | `wgpu` (default) / `glow`, native `winit` + `mimalloc`, `spodeian-parallel` (Rayon/WASM), WGSL shader ready |
 
 ---
 
@@ -48,10 +60,10 @@ graph TD
     Desktop --> App
 ```
 
-- **`crates/shared`**: domain models (`AppConfig`, `AppPage`, `AppState`) and JSON/CSV/BSON import and export.
-- **`crates/app`**: the Leptos UI and routes (`/`, `/about`, 404), with a `PageMeta` title and description per page. Exactly one rendering feature is enabled per build: `ssr`, `hydrate` or `csr` (there is no default).
+- **`crates/shared`**: domain models (`AppConfig`, `AppPage`, `AppState`, `UndoStack`, `ParametricPreviewConfig`) and JSON/CSV/compressed-BSON/SVG/HTML/`#state=` share-link interchange.
+- **`crates/app`**: the Leptos UI and routes (`/`, `/analytics`, `/about`, 404), with OpenGraph + canonical `PageMeta` per page, `CommandPaletteModal`, `UndoStack` (`Ctrl+Z`/`Ctrl+Y`), and `tauri_bridge`. Exactly one rendering feature is enabled per build: `ssr`, `hydrate` or `csr` (there is no default).
 - **`crates/web`**: the wasm entry point (`hydrate()` or `start()`), `public/` assets (service worker, manifest, icons, self-hosted fonts, `_headers`) and the desktop Trunk `index.html`.
-- **`crates/ssg`**: a native binary that generates every static route to HTML, then finalises the site: it fills the service-worker precache list and build ID, and the CSP script hashes in `_headers`.
+- **`crates/ssg`**: a native binary that generates every static route to HTML plus `sitemap.xml` and `robots.txt`, then finalises the site: it fills the service-worker precache list and build ID, and the CSP script hashes in `_headers`.
 - **`crates/desktop`**: the Tauri v2 runner.
 
 ### Rendering modes
@@ -67,12 +79,16 @@ Hydration safety rule: the first client render must match the server HTML. Defau
 
 ## ✨ Key Features
 
-- **Static SSR + hydration** with content-hashed `/pkg/` bundles and byte-reproducible HTML.
+- **Static SSR + hydration** with content-hashed `/pkg/` bundles, byte-reproducible HTML, and auto-generated `sitemap.xml` + `robots.txt` (`crates/ssg`).
+- **Interactive Analytics & Visualization (`/analytics`)**: SSR-safe reactive priority breakdown SVG bar chart and interactive damped harmonic waveform explorer (`ParametricPreviewConfig`) with `.svg` and printable `.html` report export.
+- **Command Palette & Undo/Redo**: Searchable `CommandPaletteModal` (`Ctrl+K` / `Cmd+K`), `"Clear Completed"` batch action, and 64-step `UndoStack<ItemCollection>` (`Ctrl+Z` / `Ctrl+Y` + navbar controls).
 - **Persistence on `spodeian-cache`**: preferences and blobs go through `PreferentialStore` (localStorage, IndexedDB or Cache API chosen per value); items go through a write-through `AsyncTieredStore` with a bounded in-memory working set. Failed saves are surfaced to the user rather than swallowed. State saved by 0.1.x is migrated automatically on first load.
+- **Data Interchange & Shareable URLs**: JSON (full `AppState` and standalone `ItemCollection` fallback), RFC 4180 CSV, Zlib-compressed BSON, self-contained SVG charts, printable HTML reports, `#state=<base64url>` share hashes, and async `write_clipboard_text` confirmation.
 - **Telemetry viewer** showing real `spodeian-telemetry` metrics and log entries, with export and clipboard confirmation only on success.
 - **Offline PWA**: network-first navigations, cache-first hashed assets, and a precache list generated at build time. The cache is versioned per build.
-- **Strict CSP**: no external hosts, no `unsafe-eval`. Inline scripts are allowed by hash, generated at build time. Fonts (Atkinson Hyperlegible) are self-hosted.
-- **Accessibility**: skip link, `aria-current` navigation, modal focus trapping via `spodeian-leptos-ui`, dyslexia-friendly font option, recoverable `<ErrorBoundary>` alert view, and WCAG AA contrast for text colours enforced by automated tests.
+- **Strict CSP & SEO**: no external hosts, no `unsafe-eval`. Inline pre-paint script (restoring both theme and dyslexia preferences before first paint without FOUT) is allowed by hash generated at build time, fonts (Atkinson Hyperlegible) are self-hosted, `<noscript>` guidance is included, and every page emits OpenGraph + canonical metadata.
+- **Cross-Target Parallel Compute & Tauri IPC (`spodeian-parallel`, WGSL, Tauri v2)**: `ParametricPreviewConfig::sample_points` and `batch_harmonic_sweep` execute across OS Rayon threads in `ssg` and Tauri (`desktop_runtime_summary`, `compute_harmonic_sweep_native` IPC commands in `crates/desktop`) while compiling transparently to WASM SIMD128 in browsers; `PARAMETRIC_HARMONIC_WGSL_SHADER` provides WebGPU shader readiness and `crates/app/src/tauri_bridge.rs` exposes safe `invoke_tauri_command()` and `runtime_environment_label()`.
+- **Accessibility**: skip link, `aria-current` navigation, inline SVG theme icons, modal focus trapping via `trap_tab_within_element` across all dialogs, dyslexia-friendly font option, recoverable `<ErrorBoundary>` alert view, and WCAG AA contrast for text colours enforced by automated tests.
 - **Themes**: Dark, Warm Light, High Contrast Dark, and High Contrast Light applied before first paint via `spodeian-tokens` and `spodeian-leptos-ui`.
 
 ### Comparison vs. Official Leptos Starters
@@ -80,9 +96,10 @@ Hydration safety rule: the first client render must match the server HTML. Defau
 | Capability | `efficient-leptos-template` | Official `start-axum` | Official `start-trunk` |
 |---|---|---|---|
 | **Targets** | Static SSR + Hydration **and** Tauri v2 Desktop CSR | Axum SSR Server + Hydration | Client-Side CSR only |
-| **Hosting** | Zero-backend static hosts (`crates/ssg` + `_headers`) & Desktop | Requires Rust server runtime | Static CSR only (empty shell HTML) |
+| **Hosting** | Zero-backend static hosts (`crates/ssg` + auto `sitemap.xml`/`robots.txt` + `_headers`) & Desktop | Requires Rust server runtime | Static CSR only (empty shell HTML) |
+| **Productivity & Analytics** | Built-in `/analytics` SVG charts, searchable `CommandPaletteModal` (`Ctrl+K`), & 64-step `UndoStack` (`Ctrl+Z`/`Ctrl+Y`) | None built in | None built in |
 | **Persistence** | `spodeian-cache` + `spodeian-persist` (IndexedDB, LocalStorage, Cache API, CAS) with `schema_version` migration | None built in | None built in |
-| **Interchange** | Built-in JSON, RFC 4180 CSV, and Zlib-compressed BSON (`spodeian-export`) | None built in | None built in |
+| **Interchange** | Built-in JSON, RFC 4180 CSV, Zlib-compressed BSON, SVG, printable HTML, & `#state=` share-link URL hashes (`spodeian-export`) | None built in | None built in |
 | **Security & PWA** | Build-time `sw.js` precache & SHA-256 CSP inline-script hashing (`spodeian-web-utils::pwa`) | None built in | Manual config |
 | **A11y & Resilience** | Modal Tab trap (`spodeian-leptos-ui`), dyslexia toggle, `<ErrorBoundary>` recovery, WCAG AA contrast tests | Minimal starter markup | Minimal starter markup |
 | **Observability** | Live `spodeian-telemetry` ring-buffer modal & Criterion serialization benchmarks | Standard tracing setup | Standard console logging |
@@ -173,12 +190,13 @@ Bundles are written to `target/release/bundle/`. The desktop build does not prec
 | Test Suite | Location | Verified Host Count & Purpose |
 |---|---|---|
 | App unit tests | `crates/app/src/components/telemetry_viewer.rs` | `2` unit tests for telemetry uptime & relative age formatting |
-| App integration & SSR tests | `crates/app/tests/app_tests.rs` | `15` tests covering state mutations, storage diagnostics, working-set spillover, SSR `<ErrorFallbackView>` / `<AboutPage>`, and WCAG AA contrast enforcement |
-| Shared unit & property tests | `crates/shared/tests/shared_tests.rs` | `13` tests (including `proptest` suites for `u64` BSON bit-preservation, schema migration, RFC 4180 CSV round-trips, and theme cycles) |
-| SSG unit tests | `crates/ssg/src/main.rs` | `4` tests validating delegated `spodeian_web_utils::pwa` CSP script hashing, precache URLs, and nonce stripping |
-| Web native smoke test | `crates/web/tests/smoke_tests.rs` | `1` native smoke test (`35` native workspace tests total excluding `desktop`) |
+| App integration & SSR tests | `crates/app/tests/app_tests.rs` | `18` tests covering state mutations, storage diagnostics, working-set spillover, SSR `<ErrorFallbackView>` / `<AboutPage>` / `<AnalyticsPage>`, `THEME_PREPAINT_SCRIPT` parity, `UndoStack`, and WCAG AA contrast enforcement |
+| Desktop Tauri & IPC tests | `crates/desktop/tests/smoke_tests.rs` | `2` tests validating Tauri context metadata (`test_desktop_smoke`) and native Rayon backend IPC commands (`test_desktop_ipc_commands`) |
+| Shared unit & property tests | `crates/shared/tests/shared_tests.rs` | `17` tests (including `proptest` suites for `u64` BSON bit-preservation, schema migration, RFC 4180 CSV round-trips, HTML delimiter escaping, `UndoStack`, SVG/HTML/`#state=` exports, theme cycles, and `spodeian-parallel` sweep / WGSL CPU parity) |
+| SSG unit tests | `crates/ssg/src/main.rs` | `5` tests validating delegated `spodeian_web_utils::pwa` CSP script hashing, precache URLs, nonce stripping, and `sitemap.xml` / `robots.txt` generation |
+| Web native smoke test | `crates/web/tests/smoke_tests.rs` | `1` native smoke test (`43` native tests excluding `desktop`, **`45` full workspace host tests** including `desktop`) |
 | Web browser tests | `crates/web/tests/{routing,storage,wasm}_tests.rs` | Headless Chrome/Firefox DOM, routing, and IndexedDB persistence suites (`--target wasm32-unknown-unknown`) |
-| Benchmarks | `crates/shared/benches/serialization_benchmarks.rs` | Criterion benchmarks for 100-item JSON, CSV, and compressed BSON export |
+| Example & Benchmarks | `crates/shared/examples/state_interchange_and_report.rs`, `crates/shared/benches/serialization_benchmarks.rs` | Runnable interchange report example & Criterion benchmarks for 100-item JSON, CSV, and compressed BSON export |
 
 CI also builds the pre-rendered release and checks that each page contains its content without JavaScript.
 

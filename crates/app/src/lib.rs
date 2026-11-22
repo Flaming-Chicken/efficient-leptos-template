@@ -1,4 +1,6 @@
 #![recursion_limit = "256"]
+#![warn(missing_docs)]
+#![warn(clippy::unwrap_used)]
 //! Main Leptos UI application view controller, layout components, and state synchronization.
 #![allow(clippy::unit_arg)]
 #![allow(clippy::unused_unit)]
@@ -8,6 +10,7 @@ pub mod components;
 #[cfg(feature = "ssr")]
 pub mod shell;
 pub mod storage;
+pub mod tauri_bridge;
 
 #[cfg(feature = "ssr")]
 pub use shell::shell;
@@ -16,26 +19,35 @@ use crate::components::theme::{
     apply_document_dyslexia, apply_document_theme, get_initial_dyslexia, get_initial_theme,
 };
 use crate::components::{
-    AboutPage, ExportModal, HelpModal, ImportModal, ItemList, Navbar, ResetModal, StorageModal,
-    TelemetryModal,
+    AboutPage, AnalyticsPage, CommandPaletteModal, ExportModal, HelpModal, ImportModal, ItemList,
+    Navbar, ResetModal, StorageModal, TelemetryModal,
 };
 use crate::storage::{
-    query_storage_diagnostics, request_persistent_storage, trigger_binary_download,
+    query_storage_diagnostics, request_persistent_storage, save_state_to_storage,
+    trigger_binary_download,
 };
 use leptos::prelude::*;
-use leptos_meta::{Meta, Title, provide_meta_context};
+use leptos_meta::{Link, Meta, Title, provide_meta_context};
 use leptos_router::components::{A, Route, Router, Routes};
 use leptos_router::static_routes::StaticRoute;
 use leptos_router::{SsrMode, path};
-use shared::{AppPage, AppState, ThemeMode, export_to_compressed_bson};
+use shared::{AppPage, AppState, ItemCollection, ThemeMode, UndoStack, export_to_compressed_bson};
 use tracing::info;
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::JsCast;
 
-/// Sets the document title and description for one page.
+/// Sets the document title, description, canonical link, and OpenGraph tags for one page.
 #[component]
 fn PageMeta(page: AppPage) -> impl IntoView {
+    let title = format!("{} | Leptos Serverless & Desktop Template", page.label());
+    let desc = page.description();
     view! {
-        <Title text=format!("{} | Leptos Serverless & Desktop Template", page.label()) />
-        <Meta name="description" content=page.description() />
+        <Title text=title.clone() />
+        <Meta name="description" content=desc />
+        <Meta property="og:type" content="website" />
+        <Meta property="og:title" content=title />
+        <Meta property="og:description" content=desc />
+        <Link rel="canonical" href=page.path() />
     }
 }
 
@@ -55,8 +67,11 @@ fn NotFound() -> impl IntoView {
 /// Recoverable alert surface displayed by Leptos [`ErrorBoundary`] and unit-tested in SSR mode.
 #[component]
 pub fn ErrorFallbackView(
+    /// Formatted error summary and detail list.
     recovery: spodeian_leptos_ui::ErrorBoundaryRecovery,
-    #[prop(optional)] reset_epoch: Option<RwSignal<u64>>,
+    /// Optional reactive epoch incremented to remount the failed route subtree.
+    #[prop(optional)]
+    reset_epoch: Option<RwSignal<u64>>,
 ) -> impl IntoView {
     view! {
         <section
@@ -98,6 +113,27 @@ pub fn ErrorFallbackView(
     }
 }
 
+fn target_is_editable_input(ev: &web_sys::KeyboardEvent) -> bool {
+    #[cfg(target_arch = "wasm32")]
+    {
+        if let Some(target) = ev.target()
+            && let Some(el) = target.dyn_ref::<web_sys::Element>()
+        {
+            let tag = el.tag_name();
+            return tag.eq_ignore_ascii_case("INPUT")
+                || tag.eq_ignore_ascii_case("TEXTAREA")
+                || tag.eq_ignore_ascii_case("SELECT");
+        }
+        false
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = ev;
+        false
+    }
+}
+
+/// Root reactive Leptos application component shared across static SSR, hydration, and Tauri CSR.
 #[component]
 pub fn App() -> impl IntoView {
     provide_meta_context();
@@ -108,8 +144,11 @@ pub fn App() -> impl IntoView {
     let theme = RwSignal::new(ThemeMode::default());
     let dyslexia = RwSignal::new(false);
     let state = RwSignal::new(AppState::new());
+    let undo_stack = RwSignal::new(UndoStack::<ItemCollection>::new(64));
     let (ready, set_ready) = signal(false);
     provide_context(client::ClientReady(ready));
+    provide_context(state);
+    provide_context(undo_stack);
     let storage_status = RwSignal::new(crate::storage::StorageStatus::default());
 
     // Effects never run during server rendering; in the browser this runs once after the
@@ -137,6 +176,7 @@ pub fn App() -> impl IntoView {
     let show_export_modal = RwSignal::new(false);
     let show_storage_modal = RwSignal::new(false);
     let show_telemetry_modal = RwSignal::new(false);
+    let show_command_palette = RwSignal::new(false);
     let mobile_menu_open = RwSignal::new(false);
     let route_reset_epoch = RwSignal::new(0u64);
 
@@ -155,16 +195,59 @@ pub fn App() -> impl IntoView {
         query_storage_diagnostics()
     });
 
-    // Global keyboard listener for Escape key to close modals
+    // Global keyboard listener for Escape, Ctrl/Cmd+K Command Palette, and Ctrl/Cmd+Z/Y Undo/Redo
     let on_keydown = move |ev: web_sys::KeyboardEvent| {
-        if ev.key() == "Escape" {
+        let key = ev.key();
+        let ctrl_or_meta = ev.ctrl_key() || ev.meta_key();
+
+        if ctrl_or_meta && key.eq_ignore_ascii_case("k") {
+            ev.prevent_default();
+            show_command_palette.update(|open| *open = !*open);
+            return;
+        }
+
+        if key == "Escape" {
             show_reset_modal.set(false);
             show_help_modal.set(false);
             show_import_modal.set(false);
             show_export_modal.set(false);
             show_storage_modal.set(false);
             show_telemetry_modal.set(false);
+            show_command_palette.set(false);
             mobile_menu_open.set(false);
+            return;
+        }
+
+        if target_is_editable_input(&ev) || show_command_palette.get_untracked() {
+            return;
+        }
+
+        if ctrl_or_meta && !ev.shift_key() && key.eq_ignore_ascii_case("z") {
+            ev.prevent_default();
+            let current = state.get_untracked().collection;
+            let mut restored = None;
+            undo_stack.update(|s| restored = s.undo(current));
+            if let Some(prev) = restored {
+                state.update(|st| {
+                    st.collection = prev;
+                    let _ = save_state_to_storage(st);
+                });
+                announcement.set("Undid last collection change".to_string());
+            }
+        } else if (ctrl_or_meta && key.eq_ignore_ascii_case("y"))
+            || (ctrl_or_meta && ev.shift_key() && key.eq_ignore_ascii_case("z"))
+        {
+            ev.prevent_default();
+            let current = state.get_untracked().collection;
+            let mut restored = None;
+            undo_stack.update(|s| restored = s.redo(current));
+            if let Some(next) = restored {
+                state.update(|st| {
+                    st.collection = next;
+                    let _ = save_state_to_storage(st);
+                });
+                announcement.set("Redid collection change".to_string());
+            }
         }
     };
 
@@ -197,6 +280,7 @@ pub fn App() -> impl IntoView {
                     show_export_modal=show_export_modal
                     show_storage_modal=show_storage_modal
                     show_telemetry_modal=show_telemetry_modal
+                    show_command_palette=show_command_palette
                     mobile_menu_open=mobile_menu_open
                     announcement=announcement
                 />
@@ -230,7 +314,6 @@ pub fn App() -> impl IntoView {
                                     "banner-alert banner-danger",
                                     "background: rgba(35, 20, 20, 0.95);",
                                     "border: 1px solid var(--danger);",
-
                                     view! {
                                         <span style="color: rgb(255, 120, 120);">
                                             <strong>"Storage Warning: "</strong>
@@ -342,6 +425,19 @@ pub fn App() -> impl IntoView {
                                         }
                                     />
                                     <Route
+                                        path=path!("/analytics")
+                                        ssr=SsrMode::Static(StaticRoute::new())
+                                        view=move || {
+                                            view! {
+                                                <PageMeta page=AppPage::Analytics />
+                                                <AnalyticsPage
+                                                    state=state
+                                                    show_export_modal=show_export_modal
+                                                />
+                                            }
+                                        }
+                                    />
+                                    <Route
                                         path=path!("/about")
                                         ssr=SsrMode::Static(StaticRoute::new())
                                         view=move || {
@@ -374,6 +470,10 @@ pub fn App() -> impl IntoView {
                                 "Dashboard"
                             </A>
                             <span class="footer-dot">"•"</span>
+                            <A href=AppPage::Analytics.path() attr:class="footer-nav-link">
+                                "Analytics"
+                            </A>
+                            <span class="footer-dot">"•"</span>
                             <A href=AppPage::About.path() attr:class="footer-nav-link">
                                 "About"
                             </A>
@@ -404,6 +504,18 @@ pub fn App() -> impl IntoView {
                     state=state
                 />
                 <TelemetryModal is_open=show_telemetry_modal announcement=announcement />
+                <CommandPaletteModal
+                    is_open=show_command_palette
+                    state=state
+                    theme=theme
+                    dyslexia=dyslexia
+                    show_import_modal=show_import_modal
+                    show_export_modal=show_export_modal
+                    show_storage_modal=show_storage_modal
+                    show_telemetry_modal=show_telemetry_modal
+                    show_help_modal=show_help_modal
+                    show_reset_modal=show_reset_modal
+                />
             </div>
         </Router>
     }

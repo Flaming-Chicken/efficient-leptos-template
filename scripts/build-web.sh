@@ -34,10 +34,10 @@ cargo leptos build --release
 echo "==> Pre-rendering every route to HTML"
 ./target/release/ssg "$SITE_DIR"
 
-# Fail if any page is missing or empty: a broken site must not deploy.
-for page in index.html about.html 404.html; do
-    if [ ! -s "$SITE_DIR/$page" ]; then
-        echo "ERROR: $SITE_DIR/$page was not generated" >&2
+# Fail if any page or SEO discovery file is missing or empty: a broken site must not deploy.
+for artifact in index.html analytics.html about.html 404.html sitemap.xml robots.txt; do
+    if [ ! -s "$SITE_DIR/$artifact" ]; then
+        echo "ERROR: $SITE_DIR/$artifact was not generated" >&2
         exit 1
     fi
 done

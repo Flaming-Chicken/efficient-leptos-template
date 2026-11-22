@@ -1,6 +1,9 @@
 use shared::{
-    AppState, Item, ItemCollection, Priority, ThemeMode, export_to_compressed_bson, export_to_csv,
-    export_to_json, import_from_compressed_bson, import_from_csv, import_from_json,
+    AppPage, AppState, ComputeRuntimeSummary, DEFAULT_THEME, Item, ItemCollection,
+    PARAMETRIC_HARMONIC_WGSL_SHADER, ParametricPreviewConfig, Priority, SHARE_HASH_PREFIX,
+    ThemeMode, UndoStack, decode_shareable_url_hash, encode_shareable_url_hash, escape_html,
+    export_to_compressed_bson, export_to_csv, export_to_json, export_to_printable_html,
+    export_to_svg, import_from_compressed_bson, import_from_csv, import_from_json,
 };
 
 #[test]
@@ -89,16 +92,50 @@ fn test_reset_data() {
 
 #[test]
 fn test_app_page_paths_round_trip() {
-    use shared::AppPage;
-
+    assert_eq!(AppPage::ALL.len(), 3);
+    assert_eq!(DEFAULT_THEME, ThemeMode::Dark);
     for page in AppPage::ALL {
         assert_eq!(AppPage::from_path(page.path()), Some(page));
         assert!(!page.description().is_empty());
     }
+    assert_eq!(AppPage::from_path("/analytics/"), Some(AppPage::Analytics));
     assert_eq!(AppPage::from_path("/about/"), Some(AppPage::About));
     assert_eq!(AppPage::from_path(""), Some(AppPage::Dashboard));
     assert_eq!(AppPage::from_path("/missing"), None);
+    assert_eq!(AppPage::Analytics.label(), "Analytics");
     assert_eq!(AppPage::About.label(), "About");
+}
+
+#[test]
+fn test_svg_html_share_hash_and_parametric_exports() {
+    let mut state = AppState::new();
+    state.collection.add(Item::new(
+        "xss-1",
+        "<script>alert('xss')</script>",
+        "1 < 2 & 3 > 2 \"q\"",
+        Priority::Critical,
+    ));
+
+    let svg = export_to_svg(&state);
+    assert!(svg.starts_with("<svg "));
+    assert!(svg.contains("Priority Breakdown (5 items)"));
+
+    let html = export_to_printable_html(&state);
+    assert!(html.contains("<!DOCTYPE html>"));
+    assert!(html.contains("Content-Security-Policy"));
+    assert!(!html.contains("<script>alert('xss')</script>"));
+    assert!(html.contains("&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;"));
+
+    let hash = encode_shareable_url_hash(&state).expect("encode share hash");
+    assert!(hash.starts_with(SHARE_HASH_PREFIX));
+    let decoded = decode_shareable_url_hash(&hash).expect("decode share hash");
+    assert_eq!(decoded, state);
+
+    let pts = ParametricPreviewConfig::default().sample_points(32);
+    assert_eq!(pts.len(), 32);
+    assert!(pts.iter().all(|(t, y)| t.is_finite() && y.is_finite()));
+    let svg_pts = ParametricPreviewConfig::default().svg_polyline_points(600.0, 200.0, 32);
+    assert!(!svg_pts.is_empty());
 }
 
 #[test]
@@ -234,7 +271,52 @@ mod prop_tests {
 
             let bson_bytes = export_to_compressed_bson(&state).expect("bson export");
             let from_bson = import_from_compressed_bson(&bson_bytes).expect("bson import");
-            prop_assert_eq!(from_bson, state);
+            prop_assert_eq!(&from_bson, &state);
+
+            let share_hash = encode_shareable_url_hash(&state).expect("share hash");
+            let from_hash = decode_shareable_url_hash(&share_hash).expect("decode share hash");
+            prop_assert_eq!(from_hash, state);
+        }
+
+        #[test]
+        fn prop_undo_stack_state_invariants(
+            cap in 1usize..=16usize,
+            ops in proptest::collection::vec(prop_oneof![
+                (0usize..100usize).prop_map(|v| (0u8, v)),
+                Just((1u8, 0usize)),
+                Just((2u8, 0usize)),
+                Just((3u8, 0usize)),
+            ], 0..48),
+        ) {
+            let mut stack = UndoStack::new(cap);
+            let mut current = 0usize;
+            for (kind, val) in ops {
+                match kind {
+                    0 => {
+                        stack.push(current);
+                        current = val;
+                    }
+                    1 => {
+                        if let Some(prev) = stack.undo(current) {
+                            current = prev;
+                        }
+                    }
+                    2 => {
+                        if let Some(next) = stack.redo(current) {
+                            current = next;
+                        }
+                    }
+                    _ => stack.clear(),
+                }
+                prop_assert!(stack.undo_len() <= cap);
+            }
+        }
+
+        #[test]
+        fn prop_escape_html_neutralizes_delimiters(raw in ".*") {
+            let escaped = escape_html(&raw);
+            prop_assert!(!escaped.contains('<'));
+            prop_assert!(!escaped.contains('>'));
         }
 
         #[test]
@@ -272,5 +354,26 @@ mod prop_tests {
             }
             prop_assert_eq!(cur, normalized);
         }
+    }
+
+    #[test]
+    fn test_batch_harmonic_sweep_and_wgsl_parity() {
+        let cfg = ParametricPreviewConfig::default();
+        let curves = cfg.batch_harmonic_sweep(&[0.5, 1.0, 2.0], 64);
+        assert_eq!(curves.len(), 3);
+        assert!(curves.iter().all(|c| c.len() == 64));
+
+        let cpu_ref = cfg.evaluate_harmonic_wgsl_cpu_reference(64);
+        assert_eq!(cpu_ref.len(), 64);
+        for (idx, (_, y)) in curves[1].iter().enumerate() {
+            assert!((y - cpu_ref[idx]).abs() < 1e-6);
+        }
+
+        assert!(PARAMETRIC_HARMONIC_WGSL_SHADER.contains("@compute @workgroup_size(64)"));
+        assert!(PARAMETRIC_HARMONIC_WGSL_SHADER.contains("fn main("));
+
+        let summary = ComputeRuntimeSummary::current();
+        assert!(summary.parallel_threads >= 1);
+        assert!(summary.wgsl_shader_ready);
     }
 }

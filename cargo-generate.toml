@@ -27,7 +27,14 @@ prompt = "Include Cloudflare Pages deployment configuration (wrangler.toml, _hea
 default = true
 
 [conditional.'!include_tauri_desktop']
-ignore = ["crates/desktop", "Trunk.toml", "src-tauri"]
+ignore = [
+    "crates/desktop",
+    "Trunk.toml",
+    "scripts/build-android.sh",
+    "scripts/build-android.ps1",
+    "scripts/build-ios.sh",
+    "scripts/build-ios.ps1",
+]
 
 [conditional.'!include_pwa']
 ignore = ["crates/web/public/sw.js", "crates/web/public/manifest.json"]

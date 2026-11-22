@@ -1,11 +1,18 @@
 //! About & Architecture view page component.
 
 use crate::storage::StorageDiagnostics;
+use crate::tauri_bridge::runtime_environment_label;
 use leptos::prelude::*;
-use shared::AppState;
+use shared::{AppState, ComputeRuntimeSummary};
 
+/// Architecture overview, live storage diagnostics, and keyboard shortcuts page.
 #[component]
-pub fn AboutPage(state: RwSignal<AppState>, diag: Memo<StorageDiagnostics>) -> impl IntoView {
+pub fn AboutPage(
+    /// Root application state signal.
+    state: RwSignal<AppState>,
+    /// Live storage diagnostics memo.
+    diag: Memo<StorageDiagnostics>,
+) -> impl IntoView {
     view! {
         <div
             class="about-page-container"
@@ -31,16 +38,16 @@ pub fn AboutPage(state: RwSignal<AppState>, diag: Memo<StorageDiagnostics>) -> i
                 </span>
             </div>
 
-            // Card 1: Four-Tier Architecture
+            // Card 1: Five-Crate Dual-Target Architecture
             <div
                 class="card"
                 style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 12px; padding: 24px; margin-bottom: 24px; box-shadow: var(--shadow-sm);"
             >
                 <h2 style="font-size: 1.3rem; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
-                    "🏛️ Four-Tier Architecture"
+                    "🏛️ Five-Crate Dual-Target Architecture"
                 </h2>
                 <p style="color: var(--text-muted); margin-bottom: 16px;">
-                    "The workspace is cleanly decoupled into four single-responsibility crates:"
+                    "The workspace is decoupled into five focused crates sharing domain logic across static SSR/Hydration and Tauri v2 desktop:"
                 </p>
 
                 <div class="arch-list" style="display: flex; flex-direction: column; gap: 12px;">
@@ -49,7 +56,7 @@ pub fn AboutPage(state: RwSignal<AppState>, diag: Memo<StorageDiagnostics>) -> i
                             "crates/shared"
                         </code>
                         <span style="color: var(--text-primary);">
-                            "Domain entities, AppState, AppConfig, and JSON/CSV/BSON serialization engines."
+                            "Domain entities, AppState, spodeian-parallel Rayon/WASM sweeps, WGSL compute shader, and JSON/CSV/BSON/SVG/HTML export engines."
                         </span>
                     </div>
                     <div style="display: flex; gap: 16px; align-items: baseline; padding: 8px 12px; background: var(--bg-surface-elevated); border-radius: 8px;">
@@ -57,15 +64,7 @@ pub fn AboutPage(state: RwSignal<AppState>, diag: Memo<StorageDiagnostics>) -> i
                             "crates/app"
                         </code>
                         <span style="color: var(--text-primary);">
-                            "Universal Leptos reactive UI view-controllers, navbar, item lists, modals, and persistence manager."
-                        </span>
-                    </div>
-                    <div style="display: flex; gap: 16px; align-items: baseline; padding: 8px 12px; background: var(--bg-surface-elevated); border-radius: 8px;">
-                        <code style="font-weight: 700; color: var(--accent); min-width: 140px;">
-                            "crates/desktop"
-                        </code>
-                        <span style="color: var(--text-primary);">
-                            "Native desktop application bundle powered by Tauri v2 with strict Content Security Policy."
+                            "Leptos reactive UI, Tauri IPC bridge, Command Palette, UndoStack, Analytics SVG Explorer, and spodeian-cache persistence."
                         </span>
                     </div>
                     <div style="display: flex; gap: 16px; align-items: baseline; padding: 8px 12px; background: var(--bg-surface-elevated); border-radius: 8px;">
@@ -73,7 +72,23 @@ pub fn AboutPage(state: RwSignal<AppState>, diag: Memo<StorageDiagnostics>) -> i
                             "crates/web"
                         </code>
                         <span style="color: var(--text-primary);">
-                            "WebAssembly client entrypoint, Trunk asset pipeline, PWA Service Worker, and Cloudflare Pages headers."
+                            "WASM entrypoint (hydrate for edge / csr for Tauri), PWA Service Worker, offline fonts, and edge security headers."
+                        </span>
+                    </div>
+                    <div style="display: flex; gap: 16px; align-items: baseline; padding: 8px 12px; background: var(--bg-surface-elevated); border-radius: 8px;">
+                        <code style="font-weight: 700; color: var(--accent); min-width: 140px;">
+                            "crates/ssg"
+                        </code>
+                        <span style="color: var(--text-primary);">
+                            "Pre-renders static routes to HTML, emits sitemap.xml & robots.txt, and injects SHA-256 CSP script hashes into _headers."
+                        </span>
+                    </div>
+                    <div style="display: flex; gap: 16px; align-items: baseline; padding: 8px 12px; background: var(--bg-surface-elevated); border-radius: 8px;">
+                        <code style="font-weight: 700; color: var(--accent); min-width: 140px;">
+                            "crates/desktop"
+                        </code>
+                        <span style="color: var(--text-primary);">
+                            "Native Tauri v2 desktop/mobile runner registering native Rayon IPC commands (desktop_runtime_summary, compute_harmonic_sweep_native) with mimalloc."
                         </span>
                     </div>
                 </div>
@@ -168,6 +183,29 @@ pub fn AboutPage(state: RwSignal<AppState>, diag: Memo<StorageDiagnostics>) -> i
                             }}
                         </div>
                     </div>
+                    <div style="padding: 12px; background: var(--bg-surface-elevated); border-radius: 8px;">
+                        <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase;">
+                            "Runtime Environment"
+                        </div>
+                        <div style="font-weight: 600; margin-top: 4px;">
+                            {runtime_environment_label()}
+                        </div>
+                    </div>
+                    <div style="padding: 12px; background: var(--bg-surface-elevated); border-radius: 8px;">
+                        <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase;">
+                            "Compute & WGSL Kernels"
+                        </div>
+                        <div style="font-weight: 600; margin-top: 4px;">
+                            {
+                                let summary = ComputeRuntimeSummary::current();
+                                format!(
+                                    "{} • {} threads",
+                                    summary.runtime_label,
+                                    summary.parallel_threads,
+                                )
+                            }
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -193,8 +231,22 @@ pub fn AboutPage(state: RwSignal<AppState>, diag: Memo<StorageDiagnostics>) -> i
                         <span>"Close active modal dialogs"</span>
                     </div>
                     <div style="display: flex; gap: 12px; align-items: center;">
+                        <kbd style="padding: 4px 8px; background: var(--bg-surface-elevated); border: 1px solid var(--border-color); border-radius: 4px; font-family: var(--font-mono); font-size: 0.85rem;">
+                            "Ctrl+K / Cmd+K"
+                        </kbd>
+                        <span>"Open searchable Command Palette"</span>
+                    </div>
+                    <div style="display: flex; gap: 12px; align-items: center;">
+                        <kbd style="padding: 4px 8px; background: var(--bg-surface-elevated); border: 1px solid var(--border-color); border-radius: 4px; font-family: var(--font-mono); font-size: 0.85rem;">
+                            "Ctrl+Z / Ctrl+Y"
+                        </kbd>
+                        <span>"Undo or redo item collection edits"</span>
+                    </div>
+                    <div style="display: flex; gap: 12px; align-items: center;">
                         <span style="font-weight: 600;">"Data Export:"</span>
-                        <span>"JSON, RFC 4180 CSV, Compressed BSON"</span>
+                        <span>
+                            "JSON, CSV, Compressed BSON, SVG Chart, Printable HTML & #state Links"
+                        </span>
                     </div>
                     <div style="display: flex; gap: 12px; align-items: center;">
                         <span style="font-weight: 600;">"Offline PWA:"</span>

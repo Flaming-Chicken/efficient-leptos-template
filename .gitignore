@@ -1,13 +1,35 @@
 # Rust build artifacts
 /target
+**/*.rs.bk
+lcov.info
 
 # Trunk and Web build distribution
 /crates/web/dist
 /dist
+.stage/
 
 # Cloudflare Pages / Workers
 .wrangler
 .dev.vars
+
+# Binary Models, Audio, Columnar Datasets & Archives (Never commit to git)
+*.safetensors
+*.gguf
+*.onnx
+*.pt
+*.pth
+*.bin
+*.wav
+*.flac
+*.mp3
+*.ogg
+*.parquet
+*.arrow
+*.feather
+*.db
+*.sqlite*
+*.bundle
+*.tar
 
 # Editor and OS
 .vscode/
@@ -16,6 +38,7 @@
 *.swo
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # Node
 node_modules/

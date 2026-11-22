@@ -1,13 +1,24 @@
-//! Interactive item management component with reactive search, filtering, creation, and statistics.
+//! Interactive item management component with reactive search, filtering, undo support, and statistics.
 
 use crate::storage::save_state_to_storage;
 use leptos::prelude::*;
-use shared::{AppState, Item, Priority};
+use shared::{AppState, Item, ItemCollection, Priority, UndoStack};
 
+fn push_undo_snapshot(state: RwSignal<AppState>) {
+    if let Some(undo_sig) = use_context::<RwSignal<UndoStack<ItemCollection>>>() {
+        let current = state.get_untracked().collection;
+        undo_sig.update(|stack| stack.push(current));
+    }
+}
+
+/// Renders completion KPIs, the new-item form, search/priority filters, and the item card list.
 #[component]
 pub fn ItemList(
+    /// Root application state signal.
     state: RwSignal<AppState>,
-    #[prop(optional)] announcement: Option<RwSignal<String>>,
+    /// Optional screen-reader live announcement signal.
+    #[prop(optional)]
+    announcement: Option<RwSignal<String>>,
 ) -> impl IntoView {
     let new_title = RwSignal::new(String::new());
     let new_description = RwSignal::new(String::new());
@@ -36,6 +47,7 @@ pub fn ItemList(
             created_at: js_sys_time(),
         };
 
+        push_undo_snapshot(state);
         state.update(|s| {
             s.collection.add(item);
             if let Err(e) = save_state_to_storage(s) {
@@ -55,6 +67,7 @@ pub fn ItemList(
     let toggle_item = move |id: String| {
         let mut completed_state = false;
         let mut item_title = String::new();
+        push_undo_snapshot(state);
         state.update(|s| {
             if let Some(item) = s.collection.items.iter_mut().find(|i| i.id == id) {
                 item.completed = !item.completed;
@@ -77,6 +90,7 @@ pub fn ItemList(
 
     let remove_item = move |id: String| {
         let mut item_title = String::new();
+        push_undo_snapshot(state);
         state.update(|s| {
             if let Some(pos) = s.collection.items.iter().position(|i| i.id == id) {
                 item_title = s.collection.items[pos].title.clone();
@@ -88,6 +102,23 @@ pub fn ItemList(
         });
         if let Some(announcer) = announcement {
             announcer.set(format!("Deleted task: {item_title}"));
+        }
+    };
+
+    let clear_completed = move |_| {
+        let completed_count = state.get_untracked().collection.completed_count();
+        if completed_count == 0 {
+            return;
+        }
+        push_undo_snapshot(state);
+        state.update(|s| {
+            s.collection.clear_completed();
+            if let Err(e) = save_state_to_storage(s) {
+                tracing::error!("Failed to persist state on clear completed: {e}");
+            }
+        });
+        if let Some(announcer) = announcement {
+            announcer.set(format!("Cleared {completed_count} completed tasks"));
         }
     };
 
@@ -247,6 +278,7 @@ pub fn ItemList(
                             type="text"
                             class="input-search"
                             placeholder="Search items by title or description..."
+                            aria-label="Search items"
                             prop:value=move || search_query.get()
                             on:input=move |ev| search_query.set(event_target_value(&ev))
                         />
@@ -255,6 +287,7 @@ pub fn ItemList(
                                 view! {
                                     <button
                                         class="btn-clear-search"
+                                        aria-label="Clear search"
                                         on:click=move |_| search_query.set(String::new())
                                     >
                                         "✕"
@@ -267,9 +300,10 @@ pub fn ItemList(
                         }}
                     </div>
 
-                    <div class="filter-actions">
+                    <div class="filter-actions" style="flex-wrap: wrap;">
                         <select
                             class="select-input select-filter"
+                            aria-label="Filter by priority"
                             on:change=move |ev| {
                                 let val = event_target_value(&ev);
                                 let p = match val.as_str() {
@@ -297,6 +331,14 @@ pub fn ItemList(
                             />
                             <span>"Show Completed"</span>
                         </label>
+
+                        <button
+                            class="btn btn-secondary"
+                            disabled=move || state.get().collection.completed_count() == 0
+                            on:click=clear_completed
+                        >
+                            "Clear Completed"
+                        </button>
                     </div>
                 </div>
             </section>
@@ -339,6 +381,7 @@ pub fn ItemList(
                                             prop:checked=is_completed
                                             on:change=move |_| toggle_item(item_id.clone())
                                             title="Toggle completed"
+                                            aria-label=format!("Toggle completion for {}", item.title)
                                         />
                                     </div>
                                     <div class="item-content">

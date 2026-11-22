@@ -1,6 +1,6 @@
 [package]
 name = "ssg"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
@@ -9,6 +9,7 @@ description = "Pre-renders every route of the web release to static HTML"
 publish = false
 
 [dependencies]
+shared = { workspace = true }
 app = { workspace = true, features = ["ssr"] }
 leptos = { workspace = true, features = ["ssr"] }
 leptos_axum = { workspace = true }

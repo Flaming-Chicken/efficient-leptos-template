@@ -1,27 +1,80 @@
-//! Responsive top navigation bar with quick action buttons and mobile drawer.
+//! Responsive top navigation bar with quick action buttons, undo/redo, command palette, and mobile drawer.
 
 use crate::components::theme::{DyslexiaToggle, ThemeToggle};
-use crate::storage::{query_storage_diagnostics, trigger_pwa_install};
+use crate::storage::{query_storage_diagnostics, save_state_to_storage, trigger_pwa_install};
 use leptos::prelude::*;
 use leptos_router::components::A;
 use leptos_router::hooks::use_location;
-use shared::{AppPage, ThemeMode};
+use shared::{AppPage, AppState, ItemCollection, ThemeMode, UndoStack};
 
+/// Top responsive navigation header and mobile menu drawer.
 #[component]
 pub fn Navbar(
+    /// Active visual theme signal.
     theme: RwSignal<ThemeMode>,
+    /// Active dyslexia typography signal.
     dyslexia: RwSignal<bool>,
+    /// Opens the reset confirmation dialog.
     show_reset_modal: RwSignal<bool>,
+    /// Opens the help dialog.
     show_help_modal: RwSignal<bool>,
+    /// Opens the import dialog.
     show_import_modal: RwSignal<bool>,
+    /// Opens the export dialog.
     show_export_modal: RwSignal<bool>,
+    /// Opens the storage diagnostics dialog.
     show_storage_modal: RwSignal<bool>,
-    #[prop(optional)] show_telemetry_modal: Option<RwSignal<bool>>,
+    /// Optional telemetry dialog signal.
+    #[prop(optional)]
+    show_telemetry_modal: Option<RwSignal<bool>>,
+    /// Optional command palette dialog signal.
+    #[prop(optional)]
+    show_command_palette: Option<RwSignal<bool>>,
+    /// Controls mobile drawer visibility.
     mobile_menu_open: RwSignal<bool>,
-    #[prop(optional)] announcement: Option<RwSignal<String>>,
+    /// Optional screen-reader live announcement signal.
+    #[prop(optional)]
+    announcement: Option<RwSignal<String>>,
 ) -> impl IntoView {
     let location = use_location();
     let current_page = Memo::new(move |_| AppPage::from_path(&location.pathname.get()));
+    let state_ctx = use_context::<RwSignal<AppState>>();
+    let undo_ctx = use_context::<RwSignal<UndoStack<ItemCollection>>>();
+
+    let on_undo = move |_| {
+        if let (Some(st), Some(undo_sig)) = (state_ctx, undo_ctx) {
+            let current = st.get_untracked().collection;
+            let mut restored = None;
+            undo_sig.update(|s| restored = s.undo(current));
+            if let Some(prev) = restored {
+                st.update(|s| {
+                    s.collection = prev;
+                    let _ = save_state_to_storage(s);
+                });
+                if let Some(ann) = announcement {
+                    ann.set("Undid last item collection change".to_string());
+                }
+            }
+        }
+    };
+
+    let on_redo = move |_| {
+        if let (Some(st), Some(undo_sig)) = (state_ctx, undo_ctx) {
+            let current = st.get_untracked().collection;
+            let mut restored = None;
+            undo_sig.update(|s| restored = s.redo(current));
+            if let Some(next) = restored {
+                st.update(|s| {
+                    s.collection = next;
+                    let _ = save_state_to_storage(s);
+                });
+                if let Some(ann) = announcement {
+                    ann.set("Redid item collection change".to_string());
+                }
+            }
+        }
+    };
+
     // Header link: highlighted, and announced as the current page, when it is shown.
     let page_link = move |page: AppPage, class: &'static str, active_class: &'static str| {
         view! {
@@ -67,11 +120,49 @@ pub fn Navbar(
                     <span class="badge-tech">{concat!("v", env!("CARGO_PKG_VERSION"))}</span>
                 </div>
 
-                <nav class="desktop-nav">
+                <nav class="desktop-nav" style="flex-wrap: wrap;">
                     <div class="page-nav-group" style="display: flex; gap: 4px; margin-right: 8px;">
                         {page_link(AppPage::Dashboard, "nav-btn", "nav-btn nav-btn-accent")}
+                        {page_link(AppPage::Analytics, "nav-btn", "nav-btn nav-btn-accent")}
                         {page_link(AppPage::About, "nav-btn", "nav-btn nav-btn-accent")}
                     </div>
+                    {move || {
+                        undo_ctx
+                            .map(|u| {
+                                view! {
+                                    <button
+                                        class="nav-btn"
+                                        disabled=move || !u.get().can_undo()
+                                        on:click=on_undo
+                                        title="Undo (Ctrl+Z)"
+                                    >
+                                        "Undo"
+                                    </button>
+                                    <button
+                                        class="nav-btn"
+                                        disabled=move || !u.get().can_redo()
+                                        on:click=on_redo
+                                        title="Redo (Ctrl+Y)"
+                                    >
+                                        "Redo"
+                                    </button>
+                                }
+                            })
+                    }}
+                    {move || {
+                        show_command_palette
+                            .map(|cp| {
+                                view! {
+                                    <button
+                                        class="nav-btn"
+                                        on:click=move |_| cp.set(true)
+                                        title="Command Palette (Ctrl+K)"
+                                    >
+                                        "⌘K"
+                                    </button>
+                                }
+                            })
+                    }}
                     {move || {
                         let d = diag.get();
                         if d.pwa_install_available && !d.is_pwa_installed {
@@ -147,6 +238,7 @@ pub fn Navbar(
                     class="mobile-menu-toggle"
                     on:click=toggle_mobile_menu
                     aria-label="Toggle Navigation Menu"
+                    aria-expanded=move || if mobile_menu_open.get() { "true" } else { "false" }
                 >
                     {move || if mobile_menu_open.get() { "✕" } else { "☰" }}
                 </button>
@@ -163,11 +255,32 @@ pub fn Navbar(
                                 "drawer-btn drawer-btn-active",
                             )}
                             {page_link(
+                                AppPage::Analytics,
+                                "drawer-btn",
+                                "drawer-btn drawer-btn-active",
+                            )}
+                            {page_link(
                                 AppPage::About,
                                 "drawer-btn",
                                 "drawer-btn drawer-btn-active",
                             )}
                             <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 6px 0;" />
+                            {move || {
+                                show_command_palette
+                                    .map(|cp| {
+                                        view! {
+                                            <button
+                                                class="drawer-btn"
+                                                on:click=move |_| {
+                                                    close_mobile_menu();
+                                                    cp.set(true);
+                                                }
+                                            >
+                                                "⌘K Command Palette"
+                                            </button>
+                                        }
+                                    })
+                            }}
                             {move || {
                                 let d = diag.get();
                                 if d.pwa_install_available && !d.is_pwa_installed {

@@ -27,12 +27,16 @@ use leptos::prelude::*;
 /// Errors arising during state persistence.
 #[derive(Error, Debug)]
 pub enum StorageError {
+    /// Serialization or compression failure during export/import.
     #[error("Export error: {0}")]
     Export(#[from] shared::ExportError),
+    /// Persistent backing storage has not initialized yet.
     #[error("Storage is not ready yet")]
     NotReady,
+    /// Legacy JSON payload decoding failed during migration.
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
+    /// Cache or IndexedDB backend failure.
     #[error("{0}")]
     Cache(#[from] spodeian_cache::CacheError),
 }
@@ -40,7 +44,9 @@ pub enum StorageError {
 /// Key of the state saved by versions before 0.2 (whole state as one JSON string in
 /// local storage). Read once to migrate, then removed.
 pub const LEGACY_STORAGE_KEY_STATE: &str = "serverless_leptos_app_state";
+/// LocalStorage key for persisting the active color theme.
 pub const STORAGE_KEY_THEME: &str = "serverless_leptos_theme";
+/// LocalStorage key for persisting the dyslexia-friendly reading mode toggle.
 pub const STORAGE_KEY_DYSLEXIA: &str = "serverless_leptos_dyslexia";
 
 const KEY_CONFIG: &str = "config";
@@ -50,11 +56,16 @@ const KEY_ITEM_INDEX: &str = "item-index";
 /// are read back from the durable tier when needed.
 pub const MEMORY_WORKING_SET_LIMIT: usize = 100;
 
+/// Active durable storage backend tier reported by diagnostics.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum StorageBackend {
+    /// Browser synchronous `localStorage` tier.
     LocalStorage,
+    /// Browser asynchronous `IndexedDB` object store.
     IndexedDb,
+    /// Browser `Cache API` store for large payloads.
     CacheApi,
+    /// Native disk content-addressed store.
     NativeCas,
     /// Nothing durable is in use (not loaded yet, or storage is unavailable).
     #[default]
@@ -62,6 +73,7 @@ pub enum StorageBackend {
 }
 
 impl StorageBackend {
+    /// Human-readable label for diagnostics views.
     pub fn label(self) -> &'static str {
         match self {
             Self::LocalStorage => "Local Storage (Fast Tier)",
@@ -101,17 +113,28 @@ pub struct StorageStatus {
     pub last_error: Option<String>,
 }
 
+/// Combined storage persistence status and PWA installation diagnostics.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StorageDiagnostics {
+    /// Whether the browser guarantees persistent non-evictable storage.
     pub is_persisted: Option<bool>,
+    /// Whether a browser `beforeinstallprompt` handle is ready.
     pub pwa_install_available: bool,
+    /// Whether running as an installed standalone PWA.
     pub is_pwa_installed: bool,
+    /// Active storage backend tier.
     pub backend: StorageBackend,
+    /// True if the last save encountered a browser storage quota error.
     pub quota_exceeded: bool,
+    /// True if IndexedDB is the active tier.
     pub idb_active: bool,
+    /// Number of items cached in memory by the storage layer.
     pub memory_items_count: usize,
+    /// Configured working-set limit before records spill to durable storage.
     pub memory_capacity_limit: usize,
+    /// True when stored item count exceeds the in-memory working-set limit.
     pub fallback_tier_active: bool,
+    /// Last persistence error message, if any.
     pub last_error: Option<String>,
 }
 

@@ -6,10 +6,11 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
     <meta name="theme-color" content="#0d1117" />
     <meta name="description" content="Modern, high-performance Serverless WebAssembly & Native Desktop application built with Rust and Leptos 0.8" />
 
-    <!-- Theme initialization (prevents a flash of the wrong theme). Inline on purpose:
+    <!-- Theme & dyslexia initialization (prevents flash of wrong theme/typography). Inline on purpose:
          it must run before first paint. Allowed by hash in the CSP. -->
     <script>
         (function () {
@@ -19,6 +20,9 @@
                     document.documentElement.setAttribute('data-theme', t);
                 } else {
                     document.documentElement.setAttribute('data-theme', 'dark');
+                }
+                if (localStorage.getItem('serverless_leptos_dyslexia') === 'true') {
+                    document.documentElement.setAttribute('data-dyslexia', 'true');
                 }
             } catch (e) {}
         })();

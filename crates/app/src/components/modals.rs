@@ -1,39 +1,50 @@
-//! Modal dialogs for State Reset, Help & Architecture, Data Import, Data Export, and Storage Diagnostics.
+//! Modal dialogs for State Reset, Help & Architecture, Data Import, Data Export, Storage Diagnostics, and Command Palette.
 
+use crate::components::theme::{apply_document_dyslexia, apply_document_theme};
 use crate::storage::{
-    copy_to_clipboard, query_storage_diagnostics, request_persistent_storage,
-    save_state_to_storage, trigger_binary_download, trigger_file_download, trigger_pwa_install,
+    query_storage_diagnostics, request_persistent_storage, save_state_to_storage,
+    trigger_binary_download, trigger_file_download, trigger_pwa_install,
 };
 use leptos::prelude::*;
+use leptos_router::hooks::use_navigate;
 use shared::{
-    AppState, export_to_compressed_bson, export_to_csv, export_to_json,
-    import_from_compressed_bson, import_from_csv, import_from_json,
+    AppPage, AppState, ItemCollection, ThemeMode, UndoStack, decode_shareable_url_hash,
+    encode_shareable_url_hash, export_to_compressed_bson, export_to_csv, export_to_json,
+    export_to_printable_html, export_to_svg, import_from_compressed_bson, import_from_csv,
+    import_from_json,
 };
 use tracing::info;
 
-/// Helper to trap Tab navigation inside modal dialogs (WCAG 2.4.3) via `spodeian-leptos-ui`.
+/// Traps `Tab` / `Shift+Tab` keyboard focus within the dialog element `modal_id` (WCAG 2.4.3).
 #[allow(unused_variables)]
-pub fn handle_modal_tab_trap(
-    ev: &web_sys::KeyboardEvent,
-    first_el: Option<&web_sys::HtmlElement>,
-    last_el: Option<&web_sys::HtmlElement>,
-) {
-    if ev.key() == "Tab" {
-        #[cfg(target_arch = "wasm32")]
-        {
-            if spodeian_leptos_ui::trap_tab_between_endpoints(ev.shift_key(), first_el, last_el) {
-                ev.prevent_default();
-            }
-        }
+pub fn handle_modal_tab_trap(ev: &web_sys::KeyboardEvent, modal_id: &str) {
+    if ev.key() == "Tab" && spodeian_leptos_ui::trap_tab_within_element(modal_id, ev.shift_key()) {
+        ev.prevent_default();
     }
 }
 
+fn push_undo_if_present(state: RwSignal<AppState>) {
+    if let Some(undo_sig) = use_context::<RwSignal<UndoStack<ItemCollection>>>() {
+        let current = state.get_untracked().collection;
+        undo_sig.update(|stack| stack.push(current));
+    }
+}
+
+/// Confirmation dialog to reset application state to default sample items.
 #[component]
-pub fn ResetModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl IntoView {
+pub fn ResetModal(
+    /// Controls modal visibility.
+    is_open: RwSignal<bool>,
+    /// Root application state signal.
+    state: RwSignal<AppState>,
+) -> impl IntoView {
     let confirm_reset = move |_| {
-        let default_state = AppState::new();
-        state.set(default_state.clone());
-        if let Err(e) = save_state_to_storage(&default_state) {
+        push_undo_if_present(state);
+        let mut next = state.get_untracked();
+        next.reset_data();
+        next.collection = ItemCollection::with_sample_data();
+        state.set(next.clone());
+        if let Err(e) = save_state_to_storage(&next) {
             tracing::error!("Failed to persist state on reset: {e}");
         }
         is_open.set(false);
@@ -45,9 +56,7 @@ pub fn ResetModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl In
     };
 
     let cancel_btn_ref = NodeRef::<leptos::html::Button>::new();
-    let reset_btn_ref = NodeRef::<leptos::html::Button>::new();
 
-    // Auto-focus Cancel button on open for safe default
     Effect::new(move |_| {
         if let (true, Some(btn)) = (is_open.get(), cancel_btn_ref.get()) {
             let _ = btn.focus();
@@ -59,9 +68,7 @@ pub fn ResetModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl In
             ev.stop_propagation();
             is_open.set(false);
         } else {
-            let first = cancel_btn_ref.get();
-            let last = reset_btn_ref.get();
-            handle_modal_tab_trap(&ev, first.as_deref(), last.as_deref());
+            handle_modal_tab_trap(&ev, "reset-modal-dialog");
         }
     };
 
@@ -71,6 +78,7 @@ pub fn ResetModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl In
                 view! {
                     <div class="modal-backdrop" on:click=close_modal>
                         <div
+                            id="reset-modal-dialog"
                             class="modal-card"
                             role="dialog"
                             aria-modal="true"
@@ -93,10 +101,10 @@ pub fn ResetModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl In
                             </div>
                             <div class="modal-body">
                                 <p>
-                                    "Are you sure you want to reset all tasks and configuration to the default sample dataset?"
+                                    "Are you sure you want to reset all tasks to the default sample dataset?"
                                 </p>
                                 <p class="text-warning">
-                                    "Any custom items and changes will be replaced in local browser storage."
+                                    "Any custom items will be replaced in local browser storage (use Ctrl+Z to undo)."
                                 </p>
                             </div>
                             <div class="modal-footer">
@@ -107,11 +115,7 @@ pub fn ResetModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl In
                                 >
                                     "Cancel"
                                 </button>
-                                <button
-                                    node_ref=reset_btn_ref
-                                    class="btn btn-danger"
-                                    on:click=confirm_reset
-                                >
+                                <button class="btn btn-danger" on:click=confirm_reset>
                                     "Yes, Reset Everything"
                                 </button>
                             </div>
@@ -126,14 +130,17 @@ pub fn ResetModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl In
     }
 }
 
+/// Architecture overview and keyboard shortcuts dialog.
 #[component]
-pub fn HelpModal(is_open: RwSignal<bool>) -> impl IntoView {
+pub fn HelpModal(
+    /// Controls modal visibility.
+    is_open: RwSignal<bool>,
+) -> impl IntoView {
     let close_modal = move |_| {
         is_open.set(false);
     };
 
     let close_btn_ref = NodeRef::<leptos::html::Button>::new();
-    let got_it_btn_ref = NodeRef::<leptos::html::Button>::new();
 
     Effect::new(move |_| {
         if let (true, Some(btn)) = (is_open.get(), close_btn_ref.get()) {
@@ -146,9 +153,7 @@ pub fn HelpModal(is_open: RwSignal<bool>) -> impl IntoView {
             ev.stop_propagation();
             is_open.set(false);
         } else {
-            let first = close_btn_ref.get();
-            let last = got_it_btn_ref.get();
-            handle_modal_tab_trap(&ev, first.as_deref(), last.as_deref());
+            handle_modal_tab_trap(&ev, "help-modal-dialog");
         }
     };
 
@@ -158,6 +163,7 @@ pub fn HelpModal(is_open: RwSignal<bool>) -> impl IntoView {
                 view! {
                     <div class="modal-backdrop" on:click=close_modal>
                         <div
+                            id="help-modal-dialog"
                             class="modal-card modal-large"
                             role="dialog"
                             aria-modal="true"
@@ -186,7 +192,7 @@ pub fn HelpModal(is_open: RwSignal<bool>) -> impl IntoView {
                                     <p>
                                         "This template provides a modular Rust architecture using "
                                         <strong>"Leptos 0.8"</strong>
-                                        " compiled to Client-Side WebAssembly (WASM) for Serverless Static hosting (Cloudflare Pages / GitHub Pages) and Native Desktop (Tauri v2)."
+                                        " compiled to pre-rendered static HTML + WASM hydration for static hosts and Client-Side WASM for Native Desktop (Tauri v2)."
                                     </p>
                                 </section>
 
@@ -199,32 +205,23 @@ pub fn HelpModal(is_open: RwSignal<bool>) -> impl IntoView {
                                             <code>"Item"</code>
                                             ", "
                                             <code>"AppState"</code>
-                                            ") and robust JSON / CSV / BSON export/import engines."
+                                            ", "
+                                            <code>"UndoStack"</code>
+                                            ") and JSON / CSV / BSON / SVG / HTML export engines."
                                         </li>
                                         <li>
                                             <strong>"crates/app:"</strong>
-                                            " Universal Leptos UI components, reactive signals, responsive layout, theme engine, and dialogs."
+                                            " Universal Leptos UI components, reactive signals, theme engine, analytics, and multi-tier persistence."
                                         </li>
                                         <li>
-                                            <strong>"crates/web:"</strong>
-                                            " Web client entrypoint with wasm-bindgen, Trunk configuration, and PWA assets."
+                                            <strong>"crates/web & crates/ssg:"</strong>
+                                            " WASM browser entrypoints, static route pre-rendering, auto-generated sitemap/robots, and hash-stamped PWA Service Worker."
                                         </li>
                                         <li>
                                             <strong>"crates/desktop:"</strong>
-                                            " Tauri v2 native desktop runner with cross-platform window management."
+                                            " Tauri v2 native desktop runner with strict CSP and mimalloc."
                                         </li>
                                     </ul>
-                                </section>
-
-                                <section class="help-section">
-                                    <h4>"PWA & Caching Strategy"</h4>
-                                    <p>
-                                        "Features a hybrid service worker caching strategy: "
-                                        <strong>"Network-First"</strong>
-                                        " for HTML entrypoint to guarantee instant zero-downtime updates, and "
-                                        <strong>"Cache-First"</strong>
-                                        " for content-hashed WASM, JS, and CSS bundles."
-                                    </p>
                                 </section>
 
                                 <section class="help-section">
@@ -240,16 +237,18 @@ pub fn HelpModal(is_open: RwSignal<bool>) -> impl IntoView {
                                                     </li>
                                                 }
                                             })
-                                            .collect::<Vec<_>>()}
+                                            .collect::<Vec<_>>()} <li>
+                                            <kbd>"Ctrl+K / Cmd+K"</kbd>
+                                            " — Open searchable Command Palette"
+                                        </li> <li>
+                                            <kbd>"Ctrl+Z / Ctrl+Y"</kbd>
+                                            " — Undo / Redo item collection changes"
+                                        </li>
                                     </ul>
                                 </section>
                             </div>
                             <div class="modal-footer">
-                                <button
-                                    node_ref=got_it_btn_ref
-                                    class="btn btn-primary"
-                                    on:click=close_modal
-                                >
+                                <button class="btn btn-primary" on:click=close_modal>
                                     "Got it"
                                 </button>
                             </div>
@@ -264,16 +263,28 @@ pub fn HelpModal(is_open: RwSignal<bool>) -> impl IntoView {
     }
 }
 
+/// Supported import formats in [`ImportModal`].
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum ImportFormat {
+    /// JSON application state or item collection.
     #[default]
     Json,
+    /// RFC 4180 CSV spreadsheet.
     Csv,
+    /// Base64-encoded compressed BSON backup.
     Bson,
+    /// Compact `#state=...` shareable URL fragment.
+    ShareLink,
 }
 
+/// Modal dialog for importing JSON, CSV, Base64 BSON, or `#state=...` shareable links.
 #[component]
-pub fn ImportModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl IntoView {
+pub fn ImportModal(
+    /// Controls modal visibility.
+    is_open: RwSignal<bool>,
+    /// Root application state signal.
+    state: RwSignal<AppState>,
+) -> impl IntoView {
     let import_format = RwSignal::new(ImportFormat::Json);
     let raw_text = RwSignal::new(String::new());
     let status_message = RwSignal::new(Option::<Result<String, String>>::None);
@@ -285,7 +296,6 @@ pub fn ImportModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl I
     };
 
     let close_btn_ref = NodeRef::<leptos::html::Button>::new();
-    let import_btn_ref = NodeRef::<leptos::html::Button>::new();
 
     Effect::new(move |_| {
         if let (true, Some(btn)) = (is_open.get(), close_btn_ref.get()) {
@@ -298,9 +308,7 @@ pub fn ImportModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl I
             ev.stop_propagation();
             is_open.set(false);
         } else {
-            let first = close_btn_ref.get();
-            let last = import_btn_ref.get();
-            handle_modal_tab_trap(&ev, first.as_deref(), last.as_deref());
+            handle_modal_tab_trap(&ev, "import-modal-dialog");
         }
     };
 
@@ -314,6 +322,7 @@ pub fn ImportModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl I
         match import_format.get() {
             ImportFormat::Json => match import_from_json(&content) {
                 Ok(new_state) => {
+                    push_undo_if_present(state);
                     let count = new_state.collection.items.len();
                     state.set(new_state.clone());
                     if let Err(e) = save_state_to_storage(&new_state) {
@@ -331,6 +340,7 @@ pub fn ImportModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl I
             },
             ImportFormat::Csv => match import_from_csv(&content) {
                 Ok(new_collection) => {
+                    push_undo_if_present(state);
                     let count = new_collection.items.len();
                     state.update(|s| {
                         s.collection = new_collection;
@@ -353,6 +363,7 @@ pub fn ImportModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl I
                 match base64::engine::general_purpose::STANDARD.decode(content.trim()) {
                     Ok(decoded_bytes) => match import_from_compressed_bson(&decoded_bytes) {
                         Ok(new_state) => {
+                            push_undo_if_present(state);
                             let count = new_state.collection.items.len();
                             state.set(new_state.clone());
                             if let Err(e) = save_state_to_storage(&new_state) {
@@ -374,6 +385,24 @@ pub fn ImportModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl I
                     }
                 }
             }
+            ImportFormat::ShareLink => match decode_shareable_url_hash(&content) {
+                Ok(new_state) => {
+                    push_undo_if_present(state);
+                    let count = new_state.collection.items.len();
+                    state.set(new_state.clone());
+                    if let Err(e) = save_state_to_storage(&new_state) {
+                        tracing::error!("Failed to persist state on share link import: {e}");
+                    }
+                    status_message.set(Some(Ok(format!(
+                        "Successfully imported {} items from share link!",
+                        count
+                    ))));
+                    info!("Successfully imported {} items via share link", count);
+                }
+                Err(e) => {
+                    status_message.set(Some(Err(format!("Share Link Error: {}", e))));
+                }
+            },
         }
     };
 
@@ -383,6 +412,7 @@ pub fn ImportModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl I
                 view! {
                     <div class="modal-backdrop" on:click=close_modal>
                         <div
+                            id="import-modal-dialog"
                             class="modal-card modal-large"
                             role="dialog"
                             aria-modal="true"
@@ -405,7 +435,7 @@ pub fn ImportModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl I
                                 </button>
                             </div>
                             <div class="modal-body">
-                                <div class="format-toggle-bar">
+                                <div class="format-toggle-bar" style="flex-wrap: wrap;">
                                     <button
                                         class=move || {
                                             format!(
@@ -460,18 +490,39 @@ pub fn ImportModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl I
                                     >
                                         "Base64 BSON"
                                     </button>
+                                    <button
+                                        class=move || {
+                                            format!(
+                                                "tab-btn {}",
+                                                if import_format.get() == ImportFormat::ShareLink {
+                                                    "active"
+                                                } else {
+                                                    ""
+                                                },
+                                            )
+                                        }
+                                        on:click=move |_| {
+                                            import_format.set(ImportFormat::ShareLink);
+                                            status_message.set(None);
+                                        }
+                                    >
+                                        "#state Link"
+                                    </button>
                                 </div>
 
                                 <p class="modal-instruction">
                                     {move || match import_format.get() {
                                         ImportFormat::Json => {
-                                            "Paste a valid JSON AppState string below:"
+                                            "Paste a valid JSON AppState or ItemCollection string below:"
                                         }
                                         ImportFormat::Csv => {
                                             "Paste valid CSV data below (Header: id,title,description,priority,completed,created_at):"
                                         }
                                         ImportFormat::Bson => {
                                             "Paste Base64 encoded compressed BSON data below:"
+                                        }
+                                        ImportFormat::ShareLink => {
+                                            "Paste a #state=... fragment or full share URL below:"
                                         }
                                     }}
                                 </p>
@@ -485,6 +536,7 @@ pub fn ImportModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl I
                                             "id,title,description,priority,completed,created_at\n1,Sample Task,Task details,High,false,0"
                                         }
                                         ImportFormat::Bson => "Paste Base64 string here...",
+                                        ImportFormat::ShareLink => "#state=...",
                                     }
                                     prop:value=move || raw_text.get()
                                     on:input=move |ev| raw_text.set(event_target_value(&ev))
@@ -506,11 +558,7 @@ pub fn ImportModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl I
                                 <button class="btn btn-secondary" on:click=close_modal>
                                     "Close"
                                 </button>
-                                <button
-                                    node_ref=import_btn_ref
-                                    class="btn btn-primary"
-                                    on:click=do_import
-                                >
+                                <button class="btn btn-primary" on:click=do_import>
                                     "Import & Apply"
                                 </button>
                             </div>
@@ -525,26 +573,39 @@ pub fn ImportModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl I
     }
 }
 
+/// Supported export formats in [`ExportModal`].
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum ExportFormat {
+    /// Formatted JSON document.
     #[default]
     Json,
+    /// RFC 4180 CSV spreadsheet.
     Csv,
+    /// Base64 preview / binary `.bson` compressed backup.
     Bson,
+    /// Standalone vector SVG priority chart.
+    Svg,
+    /// Self-contained printable HTML5 report with inline SVG.
+    Html,
 }
 
+/// Modal dialog for previewing, copying (with verified clipboard feedback), and downloading exports.
 #[component]
-pub fn ExportModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl IntoView {
+pub fn ExportModal(
+    /// Controls modal visibility.
+    is_open: RwSignal<bool>,
+    /// Root application state signal.
+    state: RwSignal<AppState>,
+) -> impl IntoView {
     let export_format = RwSignal::new(ExportFormat::Json);
-    let copy_feedback = RwSignal::new(false);
+    let copy_feedback = RwSignal::new(Option::<Result<String, String>>::None);
 
     let close_modal = move |_| {
         is_open.set(false);
-        copy_feedback.set(false);
+        copy_feedback.set(None);
     };
 
     let close_btn_ref = NodeRef::<leptos::html::Button>::new();
-    let download_btn_ref = NodeRef::<leptos::html::Button>::new();
 
     Effect::new(move |_| {
         if let (true, Some(btn)) = (is_open.get(), close_btn_ref.get()) {
@@ -557,9 +618,7 @@ pub fn ExportModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl I
             ev.stop_propagation();
             is_open.set(false);
         } else {
-            let first = close_btn_ref.get();
-            let last = download_btn_ref.get();
-            handle_modal_tab_trap(&ev, first.as_deref(), last.as_deref());
+            handle_modal_tab_trap(&ev, "export-modal-dialog");
         }
     };
 
@@ -580,34 +639,73 @@ pub fn ExportModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl I
                     "Error exporting BSON".to_string()
                 }
             }
+            ExportFormat::Svg => export_to_svg(&current_state),
+            ExportFormat::Html => export_to_printable_html(&current_state),
         }
     });
 
     let on_copy = move |_| {
-        let text = exported_content.get();
-        copy_to_clipboard(&text);
-        copy_feedback.set(true);
-        set_timeout(
-            move || copy_feedback.set(false),
-            std::time::Duration::from_millis(2500),
-        );
+        let text = exported_content.get_untracked();
+        copy_feedback.set(None);
+        leptos::task::spawn_local(async move {
+            match spodeian_web_utils::write_clipboard_text(&text).await {
+                Ok(()) => copy_feedback.set(Some(Ok("Copied to clipboard!".to_string()))),
+                Err(e) => copy_feedback.set(Some(Err(format!(
+                    "Could not copy: browser clipboard unavailable ({e})"
+                )))),
+            }
+        });
+    };
+
+    let on_copy_share_link = move |_| {
+        let current_state = state.get_untracked();
+        copy_feedback.set(None);
+        match encode_shareable_url_hash(&current_state) {
+            Ok(hash) => {
+                leptos::task::spawn_local(async move {
+                    match spodeian_web_utils::write_clipboard_text(&hash).await {
+                        Ok(()) => {
+                            copy_feedback.set(Some(Ok("Copied #state share link!".to_string())))
+                        }
+                        Err(e) => copy_feedback.set(Some(Err(format!(
+                            "Share link generated, but clipboard blocked ({e})"
+                        )))),
+                    }
+                });
+            }
+            Err(e) => {
+                copy_feedback.set(Some(Err(format!("Failed to encode share link: {e}"))));
+            }
+        }
     };
 
     let on_download = move |_| {
-        let current_state = state.get();
+        let current_state = state.get_untracked();
         match export_format.get() {
             ExportFormat::Json => {
-                let content = exported_content.get();
-                trigger_file_download("app_state.json", &content, "application/json");
+                let content = exported_content.get_untracked();
+                trigger_file_download("app_state.json", &content, "application/json;charset=utf-8");
             }
             ExportFormat::Csv => {
-                let content = exported_content.get();
-                trigger_file_download("items.csv", &content, "text/csv");
+                let content = exported_content.get_untracked();
+                trigger_file_download("items.csv", &content, "text/csv;charset=utf-8");
             }
             ExportFormat::Bson => {
                 if let Ok(bytes) = export_to_compressed_bson(&current_state) {
                     trigger_binary_download("app_backup.bson", &bytes, "application/octet-stream");
                 }
+            }
+            ExportFormat::Svg => {
+                let content = exported_content.get_untracked();
+                trigger_file_download(
+                    "priority_chart.svg",
+                    &content,
+                    "image/svg+xml;charset=utf-8",
+                );
+            }
+            ExportFormat::Html => {
+                let content = exported_content.get_untracked();
+                trigger_file_download("workspace_report.html", &content, "text/html;charset=utf-8");
             }
         }
     };
@@ -618,6 +716,7 @@ pub fn ExportModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl I
                 view! {
                     <div class="modal-backdrop" on:click=close_modal>
                         <div
+                            id="export-modal-dialog"
                             class="modal-card modal-large"
                             role="dialog"
                             aria-modal="true"
@@ -640,7 +739,7 @@ pub fn ExportModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl I
                                 </button>
                             </div>
                             <div class="modal-body">
-                                <div class="format-toggle-bar">
+                                <div class="format-toggle-bar" style="flex-wrap: wrap;">
                                     <button
                                         class=move || {
                                             format!(
@@ -652,7 +751,10 @@ pub fn ExportModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl I
                                                 },
                                             )
                                         }
-                                        on:click=move |_| export_format.set(ExportFormat::Json)
+                                        on:click=move |_| {
+                                            export_format.set(ExportFormat::Json);
+                                            copy_feedback.set(None);
+                                        }
                                     >
                                         "JSON"
                                     </button>
@@ -667,7 +769,10 @@ pub fn ExportModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl I
                                                 },
                                             )
                                         }
-                                        on:click=move |_| export_format.set(ExportFormat::Csv)
+                                        on:click=move |_| {
+                                            export_format.set(ExportFormat::Csv);
+                                            copy_feedback.set(None);
+                                        }
                                     >
                                         "CSV"
                                     </button>
@@ -682,9 +787,48 @@ pub fn ExportModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl I
                                                 },
                                             )
                                         }
-                                        on:click=move |_| export_format.set(ExportFormat::Bson)
+                                        on:click=move |_| {
+                                            export_format.set(ExportFormat::Bson);
+                                            copy_feedback.set(None);
+                                        }
                                     >
-                                        "Compressed BSON"
+                                        "BSON"
+                                    </button>
+                                    <button
+                                        class=move || {
+                                            format!(
+                                                "tab-btn {}",
+                                                if export_format.get() == ExportFormat::Svg {
+                                                    "active"
+                                                } else {
+                                                    ""
+                                                },
+                                            )
+                                        }
+                                        on:click=move |_| {
+                                            export_format.set(ExportFormat::Svg);
+                                            copy_feedback.set(None);
+                                        }
+                                    >
+                                        "SVG Chart"
+                                    </button>
+                                    <button
+                                        class=move || {
+                                            format!(
+                                                "tab-btn {}",
+                                                if export_format.get() == ExportFormat::Html {
+                                                    "active"
+                                                } else {
+                                                    ""
+                                                },
+                                            )
+                                        }
+                                        on:click=move |_| {
+                                            export_format.set(ExportFormat::Html);
+                                            copy_feedback.set(None);
+                                        }
+                                    >
+                                        "HTML Report"
                                     </button>
                                 </div>
 
@@ -695,31 +839,29 @@ pub fn ExportModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl I
                                     prop:value=move || exported_content.get()
                                 ></textarea>
 
-                                {move || {
-                                    if copy_feedback.get() {
-                                        view! {
-                                            <div class="alert alert-success">
-                                                "Copied to clipboard!"
-                                            </div>
-                                        }
+                                {move || match copy_feedback.get() {
+                                    Some(Ok(msg)) => {
+                                        view! { <div class="alert alert-success">{msg}</div> }
                                             .into_any()
-                                    } else {
-                                        view! {}.into_any()
                                     }
+                                    Some(Err(err)) => {
+                                        view! { <div class="alert alert-error">{err}</div> }
+                                            .into_any()
+                                    }
+                                    None => view! {}.into_any(),
                                 }}
                             </div>
-                            <div class="modal-footer">
+                            <div class="modal-footer" style="flex-wrap: wrap;">
                                 <button class="btn btn-secondary" on:click=close_modal>
                                     "Close"
+                                </button>
+                                <button class="btn btn-outline" on:click=on_copy_share_link>
+                                    "Copy #state Link"
                                 </button>
                                 <button class="btn btn-outline" on:click=on_copy>
                                     "Copy to Clipboard"
                                 </button>
-                                <button
-                                    node_ref=download_btn_ref
-                                    class="btn btn-primary"
-                                    on:click=on_download
-                                >
+                                <button class="btn btn-primary" on:click=on_download>
                                     "Download File"
                                 </button>
                             </div>
@@ -734,10 +876,14 @@ pub fn ExportModal(is_open: RwSignal<bool>, state: RwSignal<AppState>) -> impl I
     }
 }
 
+/// Storage persistence diagnostics and backup modal.
 #[component]
 pub fn StorageModal(
+    /// Controls modal visibility.
     is_open: RwSignal<bool>,
+    /// Signal to open the Import modal directly.
     show_import_modal: RwSignal<bool>,
+    /// Root application state signal.
     state: RwSignal<AppState>,
 ) -> impl IntoView {
     let diag = Memo::new(move |_| {
@@ -752,7 +898,6 @@ pub fn StorageModal(
     };
 
     let close_btn_ref = NodeRef::<leptos::html::Button>::new();
-    let footer_close_btn_ref = NodeRef::<leptos::html::Button>::new();
 
     Effect::new(move |_| {
         if let (true, Some(btn)) = (is_open.get(), close_btn_ref.get()) {
@@ -765,9 +910,7 @@ pub fn StorageModal(
             ev.stop_propagation();
             is_open.set(false);
         } else {
-            let first = close_btn_ref.get();
-            let last = footer_close_btn_ref.get();
-            handle_modal_tab_trap(&ev, first.as_deref(), last.as_deref());
+            handle_modal_tab_trap(&ev, "storage-modal-dialog");
         }
     };
 
@@ -780,7 +923,7 @@ pub fn StorageModal(
     };
 
     let on_export_bson = move |_| {
-        let current_state = state.get();
+        let current_state = state.get_untracked();
         if let Ok(bytes) = export_to_compressed_bson(&current_state) {
             trigger_binary_download("app_backup.bson", &bytes, "application/octet-stream");
         }
@@ -806,6 +949,7 @@ pub fn StorageModal(
                 view! {
                     <div class="modal-backdrop" on:click=close_modal>
                         <div
+                            id="storage-modal-dialog"
                             class="modal-card modal-large"
                             role="dialog"
                             aria-modal="true"
@@ -907,13 +1051,226 @@ pub fn StorageModal(
                                 </div>
                             </div>
                             <div class="modal-footer">
-                                <button
-                                    node_ref=footer_close_btn_ref
-                                    class="btn btn-secondary"
-                                    on:click=close_modal
-                                >
+                                <button class="btn btn-secondary" on:click=close_modal>
                                     "Close"
                                 </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+                    .into_any()
+            } else {
+                view! {}.into_any()
+            }
+        }}
+    }
+}
+
+/// Searchable Command Palette modal (`Ctrl+K` / `Cmd+K`) for rapid keyboard navigation and actions.
+#[component]
+pub fn CommandPaletteModal(
+    /// Controls modal visibility.
+    is_open: RwSignal<bool>,
+    /// Root application state signal.
+    state: RwSignal<AppState>,
+    /// Active theme signal.
+    theme: RwSignal<ThemeMode>,
+    /// Active dyslexia typography signal.
+    dyslexia: RwSignal<bool>,
+    /// Signal opening the Import modal.
+    show_import_modal: RwSignal<bool>,
+    /// Signal opening the Export modal.
+    show_export_modal: RwSignal<bool>,
+    /// Signal opening the Storage modal.
+    show_storage_modal: RwSignal<bool>,
+    /// Signal opening the Telemetry modal.
+    show_telemetry_modal: RwSignal<bool>,
+    /// Signal opening the Help modal.
+    show_help_modal: RwSignal<bool>,
+    /// Signal opening the Reset modal.
+    show_reset_modal: RwSignal<bool>,
+) -> impl IntoView {
+    let query = RwSignal::new(String::new());
+    let input_ref = NodeRef::<leptos::html::Input>::new();
+    let navigate = use_navigate();
+
+    Effect::new(move |_| {
+        if let (true, Some(el)) = (is_open.get(), input_ref.get()) {
+            query.set(String::new());
+            let _ = el.focus();
+        }
+    });
+
+    let close_modal = move || is_open.set(false);
+
+    let on_dialog_keydown = move |ev: web_sys::KeyboardEvent| {
+        if ev.key() == "Escape" {
+            ev.stop_propagation();
+            is_open.set(false);
+        } else {
+            handle_modal_tab_trap(&ev, "command-palette-dialog");
+        }
+    };
+
+    let commands: Vec<(&'static str, &'static str, &'static str, &'static str)> = vec![
+        ("nav.dashboard", "Go to Dashboard", "Navigation", "/"),
+        (
+            "nav.analytics",
+            "Go to Analytics & SVG Explorer",
+            "Navigation",
+            "/analytics",
+        ),
+        (
+            "nav.about",
+            "Go to About & Diagnostics",
+            "Navigation",
+            "/about",
+        ),
+        ("edit.undo", "Undo Last Collection Change", "Edit", "Ctrl+Z"),
+        ("edit.redo", "Redo Collection Change", "Edit", "Ctrl+Y"),
+        ("edit.clear", "Clear Completed Items", "Edit", ""),
+        ("theme.cycle", "Cycle Visual Theme", "Appearance", ""),
+        (
+            "a11y.dyslexia",
+            "Toggle Dyslexia-Friendly Typography",
+            "Accessibility",
+            "",
+        ),
+        ("data.export", "Open Data Export Dialog", "Data", ""),
+        ("data.import", "Open Data Import Dialog", "Data", ""),
+        ("system.storage", "Open Storage Diagnostics", "System", ""),
+        ("system.telemetry", "Open System Telemetry", "System", ""),
+        ("system.help", "Open Help & Keyboard Shortcuts", "Help", ""),
+        ("system.reset", "Reset to Sample Data", "System", ""),
+    ];
+
+    let run_command = move |id: &str| {
+        match id {
+            "nav.dashboard" => navigate(AppPage::Dashboard.path(), Default::default()),
+            "nav.analytics" => navigate(AppPage::Analytics.path(), Default::default()),
+            "nav.about" => navigate(AppPage::About.path(), Default::default()),
+            "edit.undo" => {
+                if let Some(undo_sig) = use_context::<RwSignal<UndoStack<ItemCollection>>>() {
+                    let current = state.get_untracked().collection;
+                    let mut restored = None;
+                    undo_sig.update(|s| restored = s.undo(current));
+                    if let Some(prev) = restored {
+                        state.update(|st| {
+                            st.collection = prev;
+                            let _ = save_state_to_storage(st);
+                        });
+                    }
+                }
+            }
+            "edit.redo" => {
+                if let Some(undo_sig) = use_context::<RwSignal<UndoStack<ItemCollection>>>() {
+                    let current = state.get_untracked().collection;
+                    let mut restored = None;
+                    undo_sig.update(|s| restored = s.redo(current));
+                    if let Some(next) = restored {
+                        state.update(|st| {
+                            st.collection = next;
+                            let _ = save_state_to_storage(st);
+                        });
+                    }
+                }
+            }
+            "edit.clear" => {
+                push_undo_if_present(state);
+                state.update(|st| {
+                    st.collection.clear_completed();
+                    let _ = save_state_to_storage(st);
+                });
+            }
+            "theme.cycle" => {
+                let next = theme.get_untracked().next();
+                theme.set(next);
+                apply_document_theme(next);
+            }
+            "a11y.dyslexia" => {
+                let next = !dyslexia.get_untracked();
+                dyslexia.set(next);
+                apply_document_dyslexia(next);
+            }
+            "data.export" => show_export_modal.set(true),
+            "data.import" => show_import_modal.set(true),
+            "system.storage" => show_storage_modal.set(true),
+            "system.telemetry" => show_telemetry_modal.set(true),
+            "system.help" => show_help_modal.set(true),
+            "system.reset" => show_reset_modal.set(true),
+            _ => {}
+        }
+        is_open.set(false);
+    };
+
+    view! {
+        {move || {
+            if is_open.get() {
+                let commands_clone = commands.clone();
+                let run_outer = run_command.clone();
+                view! {
+                    <div class="modal-backdrop" on:click=move |_| close_modal()>
+                        <div
+                            id="command-palette-dialog"
+                            class="modal-card modal-large"
+                            role="dialog"
+                            aria-modal="true"
+                            aria-labelledby="command-palette-title"
+                            tabindex="-1"
+                            on:click=move |ev| ev.stop_propagation()
+                            on:keydown=on_dialog_keydown
+                        >
+                            <div class="modal-header">
+                                <h3 id="command-palette-title" class="modal-title">
+                                    "Command Palette"
+                                </h3>
+                                <button
+                                    class="modal-close-btn"
+                                    on:click=move |_| close_modal()
+                                    aria-label="Close command palette"
+                                >
+                                    "✕"
+                                </button>
+                            </div>
+                            <div class="modal-body">
+                                <input
+                                    node_ref=input_ref
+                                    type="text"
+                                    class="input-text"
+                                    placeholder="Filter commands by name or category..."
+                                    aria-label="Filter commands"
+                                    prop:value=move || query.get()
+                                    on:input=move |ev| query.set(event_target_value(&ev))
+                                />
+                                <div style="display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto;">
+                                    {move || {
+                                        let q = query.get().trim().to_ascii_lowercase();
+                                        commands_clone
+                                            .iter()
+                                            .filter(|(id, label, cat, _)| {
+                                                q.is_empty() || label.to_ascii_lowercase().contains(&q)
+                                                    || cat.to_ascii_lowercase().contains(&q)
+                                                    || id.to_ascii_lowercase().contains(&q)
+                                            })
+                                            .map(|&(id, label, cat, hint)| {
+                                                let run = run_outer.clone();
+                                                view! {
+                                                    <button
+                                                        class="drawer-btn"
+                                                        style="justify-content: space-between;"
+                                                        on:click=move |_| run(id)
+                                                    >
+                                                        <span>
+                                                            <strong>{format!("[{cat}] ")}</strong>
+                                                            {label}
+                                                        </span>
+                                                        {(!hint.is_empty()).then(|| view! { <kbd>{hint}</kbd> })}
+                                                    </button>
+                                                }
+                                            })
+                                            .collect::<Vec<_>>()
+                                    }}
+                                </div>
                             </div>
                         </div>
                     </div>

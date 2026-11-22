@@ -1,6 +1,7 @@
 //! Telemetry viewer: live event counts and recent log entries from `spodeian-telemetry`
 //! and KPI view models from `spodeian-leptos-ui`.
 
+use crate::components::modals::handle_modal_tab_trap;
 use leptos::prelude::*;
 use spodeian_leptos_ui::{KpiCardSpec, TelemetrySummary, format_relative_age_millis};
 use spodeian_telemetry::{LogEntry, TelemetryMetrics, global_ring_buffer, metrics_snapshot};
@@ -44,22 +45,41 @@ fn Kpi(spec: KpiCardSpec) -> impl IntoView {
     }
 }
 
+/// Modal displaying live session telemetry KPIs and ring-buffer log entries with full keyboard
+/// focus trapping.
 #[component]
 pub fn TelemetryModal(
+    /// Controls modal visibility.
     is_open: RwSignal<bool>,
-    #[prop(optional)] announcement: Option<RwSignal<String>>,
+    /// Optional screen-reader live announcement signal.
+    #[prop(optional)]
+    announcement: Option<RwSignal<String>>,
 ) -> impl IntoView {
     let snapshot = RwSignal::new(None::<Snapshot>);
-    // Take a fresh snapshot each time the dialog opens.
+    let close_btn_ref = NodeRef::<leptos::html::Button>::new();
+
+    // Take a fresh snapshot and focus close button each time the dialog opens.
     Effect::new(move |_| {
         if is_open.get() {
             snapshot.set(Some(take_snapshot()));
+            if let Some(btn) = close_btn_ref.get() {
+                let _ = btn.focus();
+            }
         }
     });
 
     let announce = move |message: &str| {
         if let Some(announcer) = announcement {
             announcer.set(message.to_string());
+        }
+    };
+
+    let on_dialog_keydown = move |ev: web_sys::KeyboardEvent| {
+        if ev.key() == "Escape" {
+            ev.stop_propagation();
+            is_open.set(false);
+        } else {
+            handle_modal_tab_trap(&ev, "telemetry-modal-dialog");
         }
     };
 
@@ -84,11 +104,14 @@ pub fn TelemetryModal(
         <Show when=move || is_open.get()>
             <div class="modal-backdrop" on:click=move |_| is_open.set(false) role="presentation">
                 <div
+                    id="telemetry-modal-dialog"
                     class="modal-card modal-telemetry"
                     on:click=|e| e.stop_propagation()
+                    on:keydown=on_dialog_keydown
                     role="dialog"
                     aria-modal="true"
                     aria-labelledby="telemetry-title"
+                    tabindex="-1"
                 >
                     {move || {
                         snapshot
@@ -168,7 +191,11 @@ pub fn TelemetryModal(
                         >
                             "Refresh"
                         </button>
-                        <button class="btn btn-primary" on:click=move |_| is_open.set(false)>
+                        <button
+                            node_ref=close_btn_ref
+                            class="btn btn-primary"
+                            on:click=move |_| is_open.set(false)
+                        >
                             "Close"
                         </button>
                     </div>

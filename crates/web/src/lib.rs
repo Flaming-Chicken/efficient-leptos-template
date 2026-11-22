@@ -1,4 +1,6 @@
 #![recursion_limit = "256"]
+#![warn(missing_docs)]
+#![warn(clippy::unwrap_used)]
 //! Browser entry points for the Leptos template.
 //!
 //! - `hydrate` (web release, built by cargo-leptos): the page arrives pre-rendered by the

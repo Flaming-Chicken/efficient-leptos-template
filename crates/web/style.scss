@@ -708,6 +708,13 @@ a.nav-btn {
     background: var(--danger-hover);
 }
 
+.btn:disabled,
+.nav-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
 /* Filters & Search */
 .filter-controls {
     display: flex;
@@ -1090,6 +1097,20 @@ kbd {
 
 .footer-dot {
     color: var(--text-muted);
+}
+
+/* Analytics & Parametric Controls */
+.analytics-page input[type="range"] {
+    width: 100%;
+    accent-color: var(--accent-primary);
+    cursor: pointer;
+    min-height: 28px;
+}
+
+.analytics-page input[type="range"]:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 4px;
+    border-radius: 4px;
 }
 
 /* Animations */

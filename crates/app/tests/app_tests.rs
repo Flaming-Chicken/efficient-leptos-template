@@ -356,7 +356,98 @@ fn test_about_page_renders_workspace_version() {
         "Expected AboutPage HTML to contain `{expected}`"
     );
     assert!(
+        html.contains("Five-Crate Dual-Target Architecture"),
+        "Expected AboutPage HTML to describe the Five-Crate Dual-Target Architecture"
+    );
+    assert!(
         !html.contains("Version 0.1.0"),
         "AboutPage HTML still contains stale `Version 0.1.0`"
     );
+}
+
+#[cfg(feature = "ssr")]
+#[test]
+fn test_theme_prepaint_script_matches_index_html() {
+    let index_html = include_str!("../../web/index.html");
+    let script_start = index_html
+        .find("<script>")
+        .expect("index.html missing inline <script> tag")
+        + "<script>".len();
+    let script_end = index_html[script_start..]
+        .find("</script>")
+        .expect("index.html missing closing </script> tag")
+        + script_start;
+    let index_script: String = index_html[script_start..script_end]
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    let shell_script: String = app::shell::THEME_PREPAINT_SCRIPT
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    assert_eq!(
+        shell_script, index_script,
+        "shell::THEME_PREPAINT_SCRIPT drifted from crates/web/index.html"
+    );
+    assert!(shell_script.contains("serverless_leptos_theme"));
+    assert!(shell_script.contains("serverless_leptos_dyslexia"));
+}
+
+#[cfg(feature = "ssr")]
+#[test]
+fn test_analytics_page_ssr_renders_priority_svg_and_harmonic_sliders() {
+    use app::components::AnalyticsPage;
+    use leptos::prelude::*;
+
+    let owner = Owner::new();
+    let html = owner.with(|| {
+        let state = RwSignal::new(AppState::new());
+        view! { <AnalyticsPage state=state /> }.to_html()
+    });
+
+    assert!(
+        html.contains("Task priority breakdown chart"),
+        "AnalyticsPage SSR output should include the priority breakdown SVG"
+    );
+    assert!(
+        html.contains("Interactive damped harmonic waveform"),
+        "AnalyticsPage SSR output should include the harmonic waveform SVG"
+    );
+    assert!(html.contains("Frequency:"));
+    assert!(html.contains("Damping:"));
+    assert!(html.contains("2nd Harmonic:"));
+    assert!(html.contains(r#"type="range""#));
+}
+
+#[test]
+fn test_undo_stack_integration_reverts_and_reapplies_collection() {
+    use shared::{Item, ItemCollection, Priority, UndoStack};
+
+    let mut state = AppState::new();
+    let initial_count = state.collection.total_count();
+    let mut history: UndoStack<ItemCollection> = UndoStack::new(16);
+
+    history.push(state.collection.clone());
+    state.collection.add(Item::new(
+        "item-audit-1",
+        "Transient Audit Task",
+        "Verify undo/redo",
+        Priority::High,
+    ));
+    assert_eq!(state.collection.total_count(), initial_count + 1);
+    assert!(history.can_undo());
+
+    let restored = history
+        .undo(state.collection.clone())
+        .expect("undo should return previous ItemCollection");
+    state.collection = restored;
+    assert_eq!(state.collection.total_count(), initial_count);
+    assert!(history.can_redo());
+
+    let reapplied = history
+        .redo(state.collection.clone())
+        .expect("redo should restore mutated ItemCollection");
+    state.collection = reapplied;
+    assert_eq!(state.collection.total_count(), initial_count + 1);
 }

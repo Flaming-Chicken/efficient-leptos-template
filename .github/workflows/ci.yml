@@ -154,6 +154,23 @@ jobs:
           tool: leptosfmt
       - name: Check Leptos Formatting (Leptosfmt)
         run: leptosfmt --check crates
+      - name: Reject Tracked Large Binaries (> 2 MB)
+        shell: python
+        run: |
+          import os, subprocess, sys
+          limit = 2 * 1024 * 1024
+          files = subprocess.check_output(["git", "ls-files", "-z"]).split(b"\0")
+          oversized = []
+          for f in files:
+              if not f:
+                  continue
+              path = f.decode("utf-8", errors="replace")
+              if os.path.isfile(path) and os.path.getsize(path) > limit:
+                  oversized.append((path, os.path.getsize(path)))
+          if oversized:
+              for path, size in oversized:
+                  print(f"::error::Tracked file '{path}' exceeds 2 MB ({size} bytes).")
+              sys.exit(1)
       # Lint each rendering mode separately: enabling ssr, hydrate and csr together
       # (--all-features) is not a build anyone ships, and hides browser-only code.
       - name: Clippy (server rendering, native)
@@ -162,6 +179,12 @@ jobs:
         run: cargo clippy -p app -p web --target wasm32-unknown-unknown --features app/hydrate,web/hydrate -- -D warnings
       - name: Clippy (client-side rendering, wasm32)
         run: cargo clippy -p app -p web --target wasm32-unknown-unknown --features app/csr,web/csr -- -D warnings
+      - name: Check Rustdoc & Examples / Benches
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+        run: |
+          cargo doc --no-deps -p shared -p app --features app/ssr
+          cargo check -p shared --examples --benches
 
   test-native:
     name: Native Tests & Coverage
@@ -248,8 +271,11 @@ jobs:
       - name: Check the pages contain their content without JavaScript
         run: |
           grep -q "Total Items" target/site/index.html
+          grep -q "<title>Analytics |" target/site/analytics.html
           grep -q "<title>About |" target/site/about.html
           grep -q "Page not found" target/site/404.html
+          test -s target/site/sitemap.xml
+          test -s target/site/robots.txt
           ! grep -q 'nonce=' target/site/index.html
 
   mobile-build-check:
@@ -272,4 +298,20 @@ jobs:
 
       - name: Check iOS Simulator Target
         run: cargo check -p desktop --target aarch64-apple-ios-sim
+
+  template-scaffold-check:
+    name: Verify Web-Only Scaffold (No Desktop)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: Simulate cargo-generate with include_tauri_desktop=false
+        run: |
+          rm -rf crates/desktop Trunk.toml scripts/build-android.* scripts/build-ios.*
+          cargo check -p shared -p app -p ssg --features app/ssr
+          cargo check -p app -p web --target wasm32-unknown-unknown --features app/hydrate,web/hydrate
+          cargo test -p shared
 
