@@ -74,7 +74,7 @@ spodeian-persist = { git = "https://github.com/Spodeian/spodeian-core", tag = "v
 spodeian-leptos-ui = { git = "https://github.com/Spodeian/spodeian-core", tag = "v3.1.0", version = "^0.1.0" }
 criterion = "0.5"
 proptest = "1"
-pollster = "0.4"
+pollster = "1.0"
 wasm-bindgen-test = "0.3"
 
 
