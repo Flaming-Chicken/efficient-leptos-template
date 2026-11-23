@@ -88,7 +88,7 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 name = "app"
 version = "0.2.3"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "js-sys",
  "leptos",
  "leptos_meta",
@@ -276,6 +276,12 @@ name = "base64"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
+
+[[package]]
+name = "base64"
+version = "0.23.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5"
 
 [[package]]
 name = "bit-set"
@@ -4446,7 +4452,7 @@ dependencies = [
 name = "shared"
 version = "0.2.3"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "bson",
  "criterion",
  "miniz_oxide 0.9.1",
