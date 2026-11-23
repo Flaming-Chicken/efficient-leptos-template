@@ -1,6 +1,21 @@
-name = "serverless-leptos-template"
-compatibility_date = "2026-08-18"
-pages_build_output_dir = "target/site"
+name = "efficient-leptos-template"
+compatibility_date = "2026-11-23"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+[assets]
+directory = "target/site"
+not_found_handling = "404-page"
+
+[observability]
+enabled = true
+
+[observability.logs]
+enabled = true
+invocation_logs = true
+
+[observability.traces]
+enabled = true
 
 [vars]
 ENVIRONMENT = "production"
