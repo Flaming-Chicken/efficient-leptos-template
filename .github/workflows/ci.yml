@@ -268,7 +268,9 @@ jobs:
       - name: Install wasm-bindgen Test Runner (version from Cargo.lock)
         run: |
           WB_VERSION=$(cargo pkgid --quiet wasm-bindgen | sed 's/.*[@#]//')
-          cargo install wasm-bindgen-cli --version "$WB_VERSION" --locked
+          if [ "$(wasm-bindgen --version 2>/dev/null | awk '{print $2}')" != "$WB_VERSION" ]; then
+            cargo install wasm-bindgen-cli --version "$WB_VERSION" --locked --force
+          fi
 
       - name: Run WebAssembly Browser Tests
         shell: bash
